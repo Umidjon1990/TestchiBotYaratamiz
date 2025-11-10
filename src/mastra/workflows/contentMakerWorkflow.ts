@@ -595,36 +595,51 @@ const sendToTelegramChannel = createStep({
         }
       }
 
-      // Step 3: Send questions
-      let messageText = `📝 *اختبارات اليوم:*\n\n`;
+      // Step 3: Send questions as interactive Quizzes
+      logger?.info(`📝 [Step 3] Sending ${inputData.questions.length} quizzes...`);
+      
+      for (let i = 0; i < inputData.questions.length; i++) {
+        const question = inputData.questions[i];
+        
+        try {
+          const quizResponse = await fetch(
+            `https://api.telegram.org/bot${telegramBotToken}/sendPoll`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                chat_id: channelId,
+                question: `${i + 1}. ${question.question}`,
+                options: question.options,
+                type: "quiz",
+                correct_option_id: question.correctAnswer,
+                explanation: question.explanation,
+                is_anonymous: false,
+              }),
+            }
+          );
 
-      inputData.questions.forEach((q, index) => {
-        messageText += `*${index + 1}. ${q.question}*\n`;
-        q.options.forEach((option, optIndex) => {
-          const letter = String.fromCharCode(65 + optIndex);
-          const isCorrect = optIndex === q.correctAnswer ? " ✅" : "";
-          messageText += `   ${letter}) ${option}${isCorrect}\n`;
-        });
-        messageText += `\n💡 _${q.explanation}_\n\n`;
-      });
-
-      const response = await fetch(
-        `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            chat_id: channelId,
-            text: messageText,
-            parse_mode: "Markdown",
-          }),
+          if (!quizResponse.ok) {
+            const errorText = await quizResponse.text();
+            logger?.warn(`⚠️ Failed to send quiz ${i + 1}`, { 
+              status: quizResponse.status,
+              error: errorText 
+            });
+          } else {
+            logger?.info(`✅ Quiz ${i + 1} sent successfully`);
+          }
+          
+          // Small delay between quizzes to avoid rate limiting
+          if (i < inputData.questions.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        } catch (quizError: any) {
+          logger?.error(`❌ Error sending quiz ${i + 1}`, { 
+            error: quizError.message 
+          });
         }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Telegram API error: ${response.status}`);
       }
 
       logger?.info("✅ [Step 3] All content sent to Telegram channel");
