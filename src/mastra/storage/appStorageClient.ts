@@ -105,19 +105,25 @@ class AppStorageClient {
     
     const stream = await this.client.downloadAsStream(filename);
     
-    // Convert stream to buffer
-    const chunks: Uint8Array[] = [];
-    const reader = stream.getReader();
+    // Convert Node.js Readable stream to buffer
+    const chunks: Buffer[] = [];
     
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (value) chunks.push(value);
-    }
-    
-    const buffer = Buffer.concat(chunks);
-    logger?.info("✅ Downloaded from App Storage:", { size: buffer.length });
-    return buffer;
+    return new Promise((resolve, reject) => {
+      stream.on('data', (chunk: Buffer) => {
+        chunks.push(chunk);
+      });
+      
+      stream.on('end', () => {
+        const buffer = Buffer.concat(chunks);
+        logger?.info("✅ Downloaded from App Storage:", { size: buffer.length });
+        resolve(buffer);
+      });
+      
+      stream.on('error', (error) => {
+        logger?.error("❌ Failed to download from App Storage:", error);
+        reject(error);
+      });
+    });
   }
 }
 
