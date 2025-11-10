@@ -310,22 +310,30 @@ const sendAdminPreview = createStep({
       const demoUrl = `${process.env.REPLIT_DOMAINS?.split(',')[0] ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : 'http://localhost:5000'}/demo/${demo.slug}`;
       logger?.info("🌐 [Step 2] Demo URL generated", { demoUrl });
 
-      const previewMessage = `
+      // Send full podcast content to admin
+      const fullContentMessage = `
 📋 *المُحْتَوَى الجَدِيدُ جَاهِزٌ!*
 
-🎙️ *البُودْكَاسْت:* ${inputData.podcastTitle}
+🎙️ *${inputData.podcastTitle}*
 
-📝 *النَّصُّ:*
-${inputData.podcastContent.substring(0, 400)}...
+📝 *النَّصُّ الكَامِلُ:*
 
-📊 *الاخْتِبَارَاتُ:* ${inputData.questions.length} أَسْئِلَةٌ
-🎧 *الصَّوْتُ:* ${inputData.audioFilename ? "✅ تَمَّ إِنْشَاؤُهُ" : "⚠️ لَمْ يَتِمَّ الإِنْشَاءُ"}
-🖼️ *الصُّورَةُ:* ${inputData.imageUrl ? "✅ جَاهِزَةٌ" : "⚠️ غَيْرُ جَاهِزَةٍ"}
+${inputData.podcastContent}
 
-🌐 *مُعَايَنَةُ العَرْضِ التَّوْضِيحِيِّ:*
-${demoUrl}
+━━━━━━━━━━━━━━━━
 
-*يُرْجَى التَّأْكِيدُ أَوْ إِعَادَةُ الإِنْشَاءِ.*
+📊 *الاخْتِبَارَاتُ (${inputData.questions.length}):*
+
+${inputData.questions.map((q, i) => `
+*${i + 1}. ${q.question}*
+${q.options.map((opt, idx) => `${String.fromCharCode(65 + idx)}) ${opt}`).join('\n')}
+✅ الإجَابَةُ الصَّحِيحَةُ: ${String.fromCharCode(65 + q.correctAnswer)}
+💡 ${q.explanation}
+`).join('\n━━━━━━━━━━━━━━━━\n')}
+
+🎧 *الصَّوْتُ:* ${inputData.audioFilename ? "✅ جَاهِزٌ" : "⚠️ غَيْرُ جَاهِزٍ"}
+
+*يُرْجَى المُرَاجَعَةُ وَالتَّأْكِيدُ لِلنَّشْرِ فِي القَنَاةِ.*
       `.trim();
 
       const response = await fetch(
@@ -337,8 +345,22 @@ ${demoUrl}
           },
           body: JSON.stringify({
             chat_id: adminChatId,
-            text: previewMessage,
+            text: fullContentMessage,
             parse_mode: "Markdown",
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: "✅ تَأْكِيدُ النَّشْرِ",
+                    callback_data: `approve_${demo.id}`
+                  },
+                  {
+                    text: "❌ رَفْضٌ",
+                    callback_data: `reject_${demo.id}`
+                  }
+                ]
+              ]
+            }
           }),
         }
       );
