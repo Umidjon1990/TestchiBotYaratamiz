@@ -411,7 +411,14 @@ const sendToTelegramChannel = createStep({
         }
       }
 
-      // Step 2: Send questions
+      // Step 2: Send audio note (if available)
+      if (inputData.audioUrl && inputData.audioUrl !== "") {
+        logger?.info("🎧 [Step 3] Audio was generated successfully");
+        // Note: Audio file storage and delivery will be implemented in future version
+        // For now, we just log that audio was generated
+      }
+
+      // Step 3: Send questions
       let messageText = `📝 *اختبارات اليوم:*\n\n`;
 
       inputData.questions.forEach((q, index) => {
@@ -423,6 +430,11 @@ const sendToTelegramChannel = createStep({
         });
         messageText += `\n💡 _${q.explanation}_\n\n`;
       });
+
+      // Add audio note to message
+      if (inputData.audioUrl && inputData.audioUrl !== "") {
+        messageText += `\n🎧 *ملاحظة:* تم إنشاء التسجيل الصوتي للبودكاست بنجاح عبر ElevenLabs.`;
+      }
 
       const response = await fetch(
         `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
