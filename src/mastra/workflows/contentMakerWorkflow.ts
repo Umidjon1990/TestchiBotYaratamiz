@@ -612,11 +612,11 @@ const sendToTelegramChannel = createStep({
               body: JSON.stringify({
                 chat_id: channelId,
                 question: `${i + 1}. ${question.question}`,
-                options: question.options,
+                options: question.options.map(opt => opt.substring(0, 100)), // Limit to 100 chars
                 type: "quiz",
                 correct_option_id: question.correctAnswer,
-                explanation: question.explanation,
-                is_anonymous: false,
+                explanation: question.explanation.substring(0, 200), // Limit explanation
+                is_anonymous: true, // Required for channels
               }),
             }
           );
