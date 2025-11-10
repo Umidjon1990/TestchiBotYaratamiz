@@ -75,12 +75,25 @@ export const generateAudio = createTool({
         { id: "FGY2WhTYpPnrIDTdsKH5", name: "Laura", gender: "female" },
       ];
 
-      // Randomly select a voice if not provided
-      const selectedVoice = context.voiceId 
-        ? arabicVoices.find(v => v.id === context.voiceId) || arabicVoices[0]
-        : arabicVoices[Math.floor(Math.random() * arabicVoices.length)];
-      
-      const voiceId = selectedVoice.id;
+      let selectedVoice: { id: string; name: string; gender: string };
+      let voiceId: string;
+
+      if (context.voiceId) {
+        // User provided a specific voiceId - honor it even if not in our list
+        const knownVoice = arabicVoices.find(v => v.id === context.voiceId);
+        if (knownVoice) {
+          selectedVoice = knownVoice;
+        } else {
+          // Custom voice not in our list
+          selectedVoice = { id: context.voiceId, name: "Custom", gender: "custom" };
+          logger?.info("🎤 Using custom voice ID not in curated list", { voiceId: context.voiceId });
+        }
+        voiceId = context.voiceId;
+      } else {
+        // Randomly select from curated voices
+        selectedVoice = arabicVoices[Math.floor(Math.random() * arabicVoices.length)];
+        voiceId = selectedVoice.id;
+      }
 
       logger?.info("📡 [generateAudio] Calling ElevenLabs API", { 
         voiceId,
