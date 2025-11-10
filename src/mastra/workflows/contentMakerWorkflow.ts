@@ -56,9 +56,6 @@ const generateContentWithAgent = createStep({
       // Dynamic prompt based on contentType and level
       const contentTypeArabic = contentType === "listening" ? "تِنْجْلَاش (مُحْتَوَى صَوْتِيّ)" : contentType === "reading" ? "أُوقِيش (مُحْتَوَى قِرَائِيّ)" : "بُودْكَاسْت";
       
-      // Word count based on content type
-      const wordCount = contentType === "listening" ? "50" : contentType === "reading" ? "100" : "80";
-      
       // Content instruction based on type
       const contentInstruction = contentType === "listening"
         ? `أنشئ نص صَوْتِيّ (audio script) بمستوى ${level} عن هذا الموضوع - يَجِبُ أَنْ يَحْتَوِيَ عَلَى 50 كَلِمَةً عَلَى الأَقَلِّ`
