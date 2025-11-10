@@ -173,6 +173,255 @@ export function registerTelegramAdminTriggers() {
               }
             );
 
+          } else if (callbackData === "view_tests") {
+            // Show test categories (listening/reading)
+            logger?.info("📋 [Telegram Admin] View tests menu");
+
+            await fetch(
+              `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  callback_query_id: callbackQuery.id,
+                  text: "📋 Testlar ro'yxati",
+                }),
+              }
+            );
+
+            await fetch(
+              `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  text: `📋 *Testlar ro'yxati*\n\nKategoriyani tanlang:`,
+                  parse_mode: "Markdown",
+                  reply_markup: {
+                    inline_keyboard: [
+                      [
+                        { text: "🎧 Tinglash testlari", callback_data: "list_listening" },
+                      ],
+                      [
+                        { text: "📖 O'qish testlari", callback_data: "list_reading" },
+                      ],
+                      [
+                        { text: "◀️ Orqaga", callback_data: "back_to_menu" },
+                      ],
+                    ],
+                  },
+                }),
+              }
+            );
+
+          } else if (callbackData === "list_listening" || callbackData === "list_reading") {
+            // Show test list for specific category
+            const contentType = callbackData.replace("list_", "");
+            logger?.info("📋 [Telegram Admin] List tests", { contentType });
+
+            await fetch(
+              `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  callback_query_id: callbackQuery.id,
+                  text: "🔄 Yuklanmoqda...",
+                }),
+              }
+            );
+
+            // Fetch tests from database
+            const { demoRepository } = await import("../mastra/storage/demoRepository");
+            const tests = await demoRepository.listDemosByContentType(contentType, 20, logger);
+
+            if (tests.length === 0) {
+              await fetch(
+                `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    chat_id: chatId,
+                    text: `📋 *${contentType === "listening" ? "🎧 Tinglash" : "📖 O'qish"} testlari*\n\nHozircha testlar yo'q.`,
+                    parse_mode: "Markdown",
+                    reply_markup: {
+                      inline_keyboard: [
+                        [{ text: "◀️ Orqaga", callback_data: "view_tests" }],
+                      ],
+                    },
+                  }),
+                }
+              );
+            } else {
+              // Create buttons for each test (max 10 per message)
+              const testButtons = tests.slice(0, 10).map((test, index) => [
+                { 
+                  text: `${index + 1}. ${test.podcastTitle.substring(0, 40)}... [${test.level}]`, 
+                  callback_data: `view_test_${test.id}` 
+                }
+              ]);
+
+              testButtons.push([{ text: "◀️ Orqaga", callback_data: "view_tests" }]);
+
+              await fetch(
+                `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    chat_id: chatId,
+                    text: `📋 *${contentType === "listening" ? "🎧 Tinglash" : "📖 O'qish"} testlari*\n\nJami: ${tests.length} ta test\n\nTestni tanlang:`,
+                    parse_mode: "Markdown",
+                    reply_markup: {
+                      inline_keyboard: testButtons,
+                    },
+                  }),
+                }
+              );
+            }
+
+          } else if (callbackData.startsWith("view_test_")) {
+            // Show test details
+            const testId = parseInt(callbackData.replace("view_test_", ""));
+            logger?.info("📄 [Telegram Admin] View test details", { testId });
+
+            await fetch(
+              `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  callback_query_id: callbackQuery.id,
+                  text: "🔄 Yuklanmoqda...",
+                }),
+              }
+            );
+
+            // Fetch test from database
+            const { demoRepository } = await import("../mastra/storage/demoRepository");
+            const test = await demoRepository.getDemoById(testId, logger);
+
+            if (!test) {
+              await fetch(
+                `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    chat_id: chatId,
+                    text: "❌ Test topilmadi.",
+                  }),
+                }
+              );
+            } else {
+              // Format test details (escape Markdown special characters)
+              const escapeMarkdown = (text: string) => text.replace(/([_*\[\]()~`>#+\-=|{}.!])/g, '\\$1');
+              
+              const contentTypeEmoji = test.contentType === "listening" ? "🎧" : "📖";
+              const statusEmoji = test.status === "posted" ? "✅" : test.status === "approved" ? "👍" : "📝";
+              
+              let message = `${contentTypeEmoji} *Test ${test.id}*\n\n`;
+              message += `📌 *Sarlavha:* ${escapeMarkdown(test.podcastTitle)}\n`;
+              message += `📊 *Daraja:* ${test.level}\n`;
+              message += `📅 *Sana:* ${new Date(test.createdAt).toLocaleDateString()}\n`;
+              message += `${statusEmoji} *Status:* ${test.status}\n\n`;
+              message += `📝 *Matn:*\n${escapeMarkdown(test.podcastContent.substring(0, 200))}${test.podcastContent.length > 200 ? "..." : ""}\n\n`;
+              message += `❓ *Savollar:* ${(test.questions as any[]).length} ta`;
+
+              await fetch(
+                `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    chat_id: chatId,
+                    text: message,
+                    parse_mode: "Markdown",
+                    reply_markup: {
+                      inline_keyboard: [
+                        [
+                          { text: "✏️ Tahrirlash", callback_data: `edit_test_${test.id}` },
+                        ],
+                        [
+                          { text: "◀️ Orqaga", callback_data: `list_${test.contentType}` },
+                        ],
+                      ],
+                    },
+                  }),
+                }
+              );
+            }
+
+          } else if (callbackData.startsWith("edit_test_")) {
+            // Edit test (for now, just show a message)
+            const testId = parseInt(callbackData.replace("edit_test_", ""));
+            logger?.info("✏️ [Telegram Admin] Edit test", { testId });
+
+            await fetch(
+              `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  callback_query_id: callbackQuery.id,
+                  text: "✏️ Tahrirlash funksiyasi keyinroq qo'shiladi",
+                  show_alert: true,
+                }),
+              }
+            );
+
+          } else if (callbackData === "back_to_menu") {
+            // Back to main menu
+            await fetch(
+              `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  callback_query_id: callbackQuery.id,
+                  text: "🏠 Bosh menyu",
+                }),
+              }
+            );
+
+            await fetch(
+              `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  text: `🎓 *مَرْحَبًا بِكَ فِي Content Maker Bot!*\n\nاخْتَرْ نَوْعَ المُحْتَوَى وَالمُسْتَوَى:`,
+                  parse_mode: "Markdown",
+                  reply_markup: {
+                    inline_keyboard: [
+                      [
+                        { text: "🎧 Tinglash - A1", callback_data: "create_listening_A1" },
+                        { text: "🎧 Tinglash - A2", callback_data: "create_listening_A2" },
+                      ],
+                      [
+                        { text: "🎧 Tinglash - B1", callback_data: "create_listening_B1" },
+                        { text: "🎧 Tinglash - B2", callback_data: "create_listening_B2" },
+                      ],
+                      [
+                        { text: "📖 O'qish - A1", callback_data: "create_reading_A1" },
+                        { text: "📖 O'qish - A2", callback_data: "create_reading_A2" },
+                      ],
+                      [
+                        { text: "📖 O'qish - B1", callback_data: "create_reading_B1" },
+                        { text: "📖 O'qish - B2", callback_data: "create_reading_B2" },
+                      ],
+                      [
+                        { text: "📋 Testlar ro'yxati", callback_data: "view_tests" },
+                      ],
+                    ],
+                  },
+                }),
+              }
+            );
+
           } else if (callbackData.startsWith("create_")) {
             // Menu button - create new content
             const [_, contentType, level] = callbackData.split("_"); // e.g., "create_listening_A2"
@@ -293,6 +542,9 @@ export function registerTelegramAdminTriggers() {
                         [
                           { text: "📖 O'qish - B1", callback_data: "create_reading_B1" },
                           { text: "📖 O'qish - B2", callback_data: "create_reading_B2" },
+                        ],
+                        [
+                          { text: "📋 Testlar ro'yxati", callback_data: "view_tests" },
                         ],
                       ],
                     },

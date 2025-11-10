@@ -244,4 +244,56 @@ export const demoRepository = {
       throw error;
     }
   },
+
+  /**
+   * Get demos by content type (listening/reading)
+   */
+  async listDemosByContentType(contentType: string, limit = 20, logger?: any) {
+    logger?.info("📋 [DemoRepository] Listing demos by content type", { contentType, limit });
+
+    try {
+      const demos = await db
+        .select()
+        .from(schema.demoSessions)
+        .where(eq(schema.demoSessions.contentType, contentType))
+        .orderBy(schema.demoSessions.createdAt)
+        .limit(limit);
+
+      logger?.info("✅ [DemoRepository] Demos listed by content type", { 
+        contentType, 
+        count: demos.length 
+      });
+
+      return demos;
+    } catch (error) {
+      logger?.error("❌ [DemoRepository] Error listing demos by content type", { error });
+      throw error;
+    }
+  },
+
+  /**
+   * Get demo by ID
+   */
+  async getDemoById(id: number, logger?: any) {
+    logger?.info("🔍 [DemoRepository] Fetching demo by ID", { id });
+
+    try {
+      const [demo] = await db
+        .select()
+        .from(schema.demoSessions)
+        .where(eq(schema.demoSessions.id, id))
+        .limit(1);
+
+      if (demo) {
+        logger?.info("✅ [DemoRepository] Demo found", { id: demo.id });
+      } else {
+        logger?.warn("⚠️ [DemoRepository] Demo not found", { id });
+      }
+
+      return demo || null;
+    } catch (error) {
+      logger?.error("❌ [DemoRepository] Error fetching demo by ID", { error });
+      throw error;
+    }
+  },
 };
