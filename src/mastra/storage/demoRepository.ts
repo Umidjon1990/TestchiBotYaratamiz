@@ -160,11 +160,11 @@ export const demoRepository = {
   },
 
   /**
-   * Update demo status
+   * Update demo status by slug
    */
   async updateDemoStatus(
     slug: string,
-    status: "draft" | "approved" | "posted",
+    status: "draft" | "approved" | "rejected" | "posted",
     logger?: any
   ) {
     logger?.info("🔄 [DemoRepository] Updating demo status", { slug, status });
@@ -174,6 +174,35 @@ export const demoRepository = {
         .update(schema.demoSessions)
         .set({ status, updatedAt: new Date() })
         .where(eq(schema.demoSessions.slug, slug))
+        .returning();
+
+      logger?.info("✅ [DemoRepository] Status updated", {
+        id: updatedDemo.id,
+        status,
+      });
+
+      return updatedDemo;
+    } catch (error) {
+      logger?.error("❌ [DemoRepository] Error updating status", { error });
+      throw error;
+    }
+  },
+
+  /**
+   * Update demo status by ID
+   */
+  async updateDemoStatusById(
+    id: number,
+    status: "draft" | "approved" | "rejected" | "posted",
+    logger?: any
+  ) {
+    logger?.info("🔄 [DemoRepository] Updating demo status by ID", { id, status });
+
+    try {
+      const [updatedDemo] = await db
+        .update(schema.demoSessions)
+        .set({ status, updatedAt: new Date() })
+        .where(eq(schema.demoSessions.id, id))
         .returning();
 
       logger?.info("✅ [DemoRepository] Status updated", {

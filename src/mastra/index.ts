@@ -12,6 +12,7 @@ import { inngest, inngestServe, registerCronWorkflow } from "./inngest";
 import { contentMakerWorkflow } from "./workflows/contentMakerWorkflow";
 import { contentMakerAgent } from "./agents/contentMakerAgent";
 import { demoRoutes } from "./routes/demoRoutes";
+import { registerTelegramAdminTriggers } from "../triggers/telegramAdminTriggers";
 
 class ProductionPinoLogger extends MastraLogger {
   protected logger: pino.Logger;
@@ -213,6 +214,12 @@ export const mastra = new Mastra({
       // ...registerGithubTrigger({ ... }),
       // ...registerSlackTrigger({ ... }),
       // ...registerStripeWebhook({ ... }),
+      
+      // ======================================================================
+      // Telegram Admin Triggers
+      // ======================================================================
+      // Admin commands and callback button handlers
+      ...registerTelegramAdminTriggers(),
       
       // ======================================================================
       // Public Demo Routes
