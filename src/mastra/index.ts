@@ -8,9 +8,9 @@ import { NonRetriableError } from "inngest";
 import { z } from "zod";
 
 import { sharedPostgresStorage } from "./storage";
-import { inngest, inngestServe } from "./inngest";
-import { exampleWorkflow } from "./workflows/exampleWorkflow"; // Replace with your own workflow
-import { exampleAgent } from "./agents/exampleAgent"; // Replace with your own agent
+import { inngest, inngestServe, registerCronWorkflow } from "./inngest";
+import { contentMakerWorkflow } from "./workflows/contentMakerWorkflow";
+import { contentMakerAgent } from "./agents/contentMakerAgent";
 
 class ProductionPinoLogger extends MastraLogger {
   protected logger: pino.Logger;
@@ -56,9 +56,13 @@ class ProductionPinoLogger extends MastraLogger {
 export const mastra = new Mastra({
   storage: sharedPostgresStorage,
   // Register your workflows here
-  workflows: {},
+  workflows: {
+    contentMakerWorkflow,
+  },
   // Register your agents here
-  agents: {},
+  agents: {
+    contentMakerAgent,
+  },
   mcpServers: {
     allTools: new MCPServer({
       name: "allTools",
@@ -237,3 +241,8 @@ if (Object.keys(mastra.getAgents()).length > 1) {
     "More than 1 agents found. Currently, more than 1 agents are not supported in the UI, since doing so will cause app state to be inconsistent.",
   );
 }
+
+// Register time-based trigger (cron)
+// Runs content maker workflow every day at 9:00 AM UTC
+// Cron format: "0 9 * * *"
+registerCronWorkflow("0 9 * * *", contentMakerWorkflow);
