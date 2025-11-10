@@ -31,6 +31,8 @@ export const generateAudio = createTool({
     success: z.boolean().describe("Whether audio generation and storage was successful"),
     message: z.string().describe("Status message"),
     filename: z.string().optional().describe("Storage filename"),
+    voiceName: z.string().optional().describe("Selected voice name"),
+    voiceGender: z.string().optional().describe("Selected voice gender"),
   }),
 
   execute: async ({ context, mastra }) => {
@@ -63,10 +65,28 @@ export const generateAudio = createTool({
         apiKey: elevenLabsApiKey,
       });
 
-      // استخدام صوت عربي - George (صوت واضح للمحتوى التعليمي)
-      const voiceId = context.voiceId || "JBFqnCBsd6RMkjVDRZzb"; // George - Arabic educational voice
+      // Arabic voices collection - different speakers for variety
+      const arabicVoices = [
+        { id: "JBFqnCBsd6RMkjVDRZzb", name: "George", gender: "male" },
+        { id: "pqHfZKP75CvOlQylNhV4", name: "Bill", gender: "male" },
+        { id: "EXAVITQu4vr4xnSDxMaL", name: "Bella", gender: "female" },
+        { id: "XrExE9yKIg1WjnnlVkGX", name: "Matilda", gender: "female" },
+        { id: "cgSgspJ2msm6clMCkdW9", name: "Jessica", gender: "female" },
+        { id: "FGY2WhTYpPnrIDTdsKH5", name: "Laura", gender: "female" },
+      ];
 
-      logger?.info("📡 [generateAudio] Calling ElevenLabs API", { voiceId });
+      // Randomly select a voice if not provided
+      const selectedVoice = context.voiceId 
+        ? arabicVoices.find(v => v.id === context.voiceId) || arabicVoices[0]
+        : arabicVoices[Math.floor(Math.random() * arabicVoices.length)];
+      
+      const voiceId = selectedVoice.id;
+
+      logger?.info("📡 [generateAudio] Calling ElevenLabs API", { 
+        voiceId,
+        voiceName: selectedVoice.name,
+        gender: selectedVoice.gender,
+      });
 
       // Generate audio with streaming
       const audioStream = await elevenlabs.textToSpeech.convert(voiceId, {
@@ -111,6 +131,7 @@ export const generateAudio = createTool({
         url,
         estimatedDuration,
         base64Length: audioBase64.length,
+        voice: `${selectedVoice.name} (${selectedVoice.gender})`,
       });
 
       return {
@@ -118,8 +139,10 @@ export const generateAudio = createTool({
         audioBase64,
         duration: estimatedDuration,
         success: true,
-        message: "Audio generated successfully via ElevenLabs and stored in App Storage",
+        message: `Audio generated successfully via ElevenLabs (${selectedVoice.name}) and stored in App Storage`,
         filename,
+        voiceName: selectedVoice.name,
+        voiceGender: selectedVoice.gender,
       };
     } catch (error) {
       logger?.error("❌ [generateAudio] Error generating/storing audio", { error });
