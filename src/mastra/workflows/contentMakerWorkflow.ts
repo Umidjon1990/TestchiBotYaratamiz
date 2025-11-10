@@ -23,6 +23,7 @@ const generateContentWithAgent = createStep({
     contentType: z.enum(["podcast", "listening", "reading"]).default("podcast"),
     level: z.enum(["A1", "A2", "B1", "B2"]).default("B1"),
     topic: z.string().optional().describe("Topic/theme for the content (e.g., 'Science', 'Technology', 'Health', or custom topic text)"),
+    audioProvider: z.enum(["elevenlabs", "lahajati"]).optional().describe("Audio provider for listening content (elevenlabs or lahajati)"),
   }),
 
   outputSchema: z.object({
@@ -42,12 +43,13 @@ const generateContentWithAgent = createStep({
     contentType: z.string(),
     level: z.string(),
     topic: z.string().optional(),
+    audioProvider: z.string().optional(),
     success: z.boolean(),
   }),
 
   execute: async ({ inputData, mastra }) => {
     const logger = mastra?.getLogger();
-    const { contentType = "podcast", level = "B1", topic } = inputData;
+    const { contentType = "podcast", level = "B1", topic, audioProvider = "elevenlabs" } = inputData;
     
     logger?.info("🤖 [Step 1] Using Content Maker Agent to generate content", {
       contentType,
@@ -217,10 +219,11 @@ ${levelDifficulty[level as keyof typeof levelDifficulty] || levelDifficulty["B1"
       // Generate audio for all modes EXCEPT reading (reading is text-only)
       let audioData = { audioUrl: "", audioBase64: "", filename: "" };
       if (contentType !== "reading") {
-        logger?.info(`🎧 [Step 1] Generating audio for ${contentType} mode...`);
+        logger?.info(`🎧 [Step 1] Generating audio for ${contentType} mode...`, { audioProvider });
         audioData = await generateAudioData(
           podcastData.podcastContent,
           podcastData.podcastTitle,
+          audioProvider,
           logger
         );
       } else {
@@ -235,6 +238,7 @@ ${levelDifficulty[level as keyof typeof levelDifficulty] || levelDifficulty["B1"
         contentType,
         level,
         topic,
+        audioProvider,
         success: true,
       };
     } catch (error) {
@@ -244,27 +248,43 @@ ${levelDifficulty[level as keyof typeof levelDifficulty] || levelDifficulty["B1"
   },
 });
 
-// Helper function for audio generation using generateAudio tool
+// Helper function for audio generation using generateAudio or generateLahajatiAudio tool
 async function generateAudioData(
   text: string,
   title: string,
+  audioProvider: string,
   logger: any
 ): Promise<{ audioUrl: string; audioBase64: string; filename: string }> {
   try {
-    logger?.info("🎧 [generateAudioData] Starting audio generation...");
+    logger?.info("🎧 [generateAudioData] Starting audio generation...", { audioProvider });
 
-    // Import the tool directly
-    const { generateAudio } = await import("../tools/generateAudio");
+    let result: any;
 
-    // Call the tool with proper parameters
-    const result = await generateAudio.execute({
-      context: {
-        text,
-        title,
-      },
-      mastra: undefined, // Will use logger from context
-      runtimeContext: undefined as any, // Tool doesn't strictly need runtime context
-    });
+    if (audioProvider === "lahajati") {
+      // Use Lahajati API
+      const { generateLahajatiAudio } = await import("../tools/generateLahajatiAudio");
+      
+      result = await generateLahajatiAudio.execute({
+        context: {
+          text,
+          title,
+        },
+        mastra: undefined,
+        runtimeContext: undefined as any,
+      });
+    } else {
+      // Use ElevenLabs API (default)
+      const { generateAudio } = await import("../tools/generateAudio");
+
+      result = await generateAudio.execute({
+        context: {
+          text,
+          title,
+        },
+        mastra: undefined,
+        runtimeContext: undefined as any,
+      });
+    }
 
     if (result.success && result.audioUrl && result.audioBase64 && result.filename) {
       logger?.info("✅ [generateAudioData] Audio generated and stored:", {
@@ -313,6 +333,7 @@ const sendAdminPreview = createStep({
     contentType: z.string(),
     level: z.string(),
     topic: z.string().optional(),
+    audioProvider: z.string().optional(),
     success: z.boolean(),
   }),
 
@@ -354,7 +375,8 @@ const sendAdminPreview = createStep({
           audioStoragePath: inputData.audioFilename || "",
           contentType: inputData.contentType,
           level: inputData.level,
-          topic: inputData.topic || null,
+          topic: inputData.topic ?? undefined,
+          audioProvider: inputData.audioProvider ?? undefined,
         },
         logger
       );

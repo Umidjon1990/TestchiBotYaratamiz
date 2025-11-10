@@ -22,6 +22,7 @@ export interface CreateDemoSessionInput {
   contentType?: string;
   level?: string;
   topic?: string;
+  audioProvider?: string;
 }
 
 export interface UpdateDemoSessionInput {
@@ -66,6 +67,7 @@ export const demoRepository = {
           contentType: input.contentType || "podcast",
           level: input.level || "B1",
           topic: input.topic || null,
+          audioProvider: input.audioProvider || "elevenlabs",
           status: "draft",
         })
         .returning();

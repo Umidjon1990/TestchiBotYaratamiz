@@ -25,6 +25,7 @@ export const demoSessions = pgTable("demo_sessions", {
   contentType: varchar("content_type", { length: 20 }).notNull().default("podcast"), // podcast, listening, reading
   level: varchar("level", { length: 5 }).default("B1"), // A1, A2, B1, B2
   topic: text("topic"), // nullable, stores selected/custom topic (Science, Technology, Health, etc.)
+  audioProvider: varchar("audio_provider", { length: 20 }).default("elevenlabs"), // elevenlabs, lahajati
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

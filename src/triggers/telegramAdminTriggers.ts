@@ -706,7 +706,7 @@ export function registerTelegramAdminTriggers() {
             }
 
           } else if (callbackData.startsWith("type_")) {
-            // Step 3: After content type selected, show level selection
+            // Step 3: After content type selected, check if it's listening (need audio provider selection)
             const [_, contentType, topic] = callbackData.split("_"); // e.g., "type_listening_Science"
             logger?.info("📊 [Telegram Admin] Content type selected", { contentType, topic });
 
@@ -722,6 +722,81 @@ export function registerTelegramAdminTriggers() {
               }
             );
 
+            if (contentType === "listening") {
+              // For listening, show audio provider selection
+              await fetch(
+                `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    chat_id: chatId,
+                    text: `📊 Mavzu: *${topic}*\nTur: *🎧 Tinglash*\n\nAudio provayderini tanlang:`,
+                    parse_mode: "Markdown",
+                    reply_markup: {
+                      inline_keyboard: [
+                        [
+                          { text: "🎙️ ElevenLabs", callback_data: `provider_elevenlabs_${topic}` },
+                        ],
+                        [
+                          { text: "🗣️ Lahajati", callback_data: `provider_lahajati_${topic}` },
+                        ],
+                        [
+                          { text: "◀️ Orqaga", callback_data: `topic_${topic}` },
+                        ],
+                      ],
+                    },
+                  }),
+                }
+              );
+            } else {
+              // For reading, go directly to level selection
+              await fetch(
+                `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    chat_id: chatId,
+                    text: `📊 Mavzu: *${topic}*\nTur: *📖 O'qish*\n\nDarajani tanlang:`,
+                    parse_mode: "Markdown",
+                    reply_markup: {
+                      inline_keyboard: [
+                        [
+                          { text: "A1 (Boshlang'ich)", callback_data: `level_A1_reading_none_${topic}` },
+                          { text: "A2 (Oddiy)", callback_data: `level_A2_reading_none_${topic}` },
+                        ],
+                        [
+                          { text: "B1 (O'rta)", callback_data: `level_B1_reading_none_${topic}` },
+                          { text: "B2 (Yuqori)", callback_data: `level_B2_reading_none_${topic}` },
+                        ],
+                        [
+                          { text: "◀️ Orqaga", callback_data: `topic_${topic}` },
+                        ],
+                      ],
+                    },
+                  }),
+                }
+              );
+            }
+
+          } else if (callbackData.startsWith("provider_")) {
+            // Step 4: After audio provider selected, show level selection
+            const [_, audioProvider, topic] = callbackData.split("_"); // e.g., "provider_elevenlabs_Science"
+            logger?.info("🎙️ [Telegram Admin] Audio provider selected", { audioProvider, topic });
+
+            await fetch(
+              `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  callback_query_id: callbackQuery.id,
+                  text: `✅ ${audioProvider === "elevenlabs" ? "ElevenLabs" : "Lahajati"} tanlandi`,
+                }),
+              }
+            );
+
             await fetch(
               `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
               {
@@ -729,20 +804,20 @@ export function registerTelegramAdminTriggers() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   chat_id: chatId,
-                  text: `📊 Mavzu: *${topic}*\nTur: *${contentType === "listening" ? "🎧 Tinglash" : "📖 O'qish"}*\n\nDarajani tanlang:`,
+                  text: `📊 Mavzu: *${topic}*\nTur: *🎧 Tinglash*\nAudio: *${audioProvider === "elevenlabs" ? "🎙️ ElevenLabs" : "🗣️ Lahajati"}*\n\nDarajani tanlang:`,
                   parse_mode: "Markdown",
                   reply_markup: {
                     inline_keyboard: [
                       [
-                        { text: "A1 (Boshlang'ich)", callback_data: `level_A1_${contentType}_${topic}` },
-                        { text: "A2 (Oddiy)", callback_data: `level_A2_${contentType}_${topic}` },
+                        { text: "A1 (Boshlang'ich)", callback_data: `level_A1_listening_${audioProvider}_${topic}` },
+                        { text: "A2 (Oddiy)", callback_data: `level_A2_listening_${audioProvider}_${topic}` },
                       ],
                       [
-                        { text: "B1 (O'rta)", callback_data: `level_B1_${contentType}_${topic}` },
-                        { text: "B2 (Yuqori)", callback_data: `level_B2_${contentType}_${topic}` },
+                        { text: "B1 (O'rta)", callback_data: `level_B1_listening_${audioProvider}_${topic}` },
+                        { text: "B2 (Yuqori)", callback_data: `level_B2_listening_${audioProvider}_${topic}` },
                       ],
                       [
-                        { text: "◀️ Orqaga", callback_data: `topic_${topic}` },
+                        { text: "◀️ Orqaga", callback_data: `type_listening_${topic}` },
                       ],
                     ],
                   },
@@ -751,13 +826,14 @@ export function registerTelegramAdminTriggers() {
             );
 
           } else if (callbackData.startsWith("level_")) {
-            // Step 4: Trigger workflow with all parameters
-            const parts = callbackData.split("_"); // e.g., "level_A1_listening_Science"
+            // Step 5: Trigger workflow with all parameters
+            const parts = callbackData.split("_"); // e.g., "level_A1_listening_elevenlabs_Science" or "level_A1_reading_none_Science"
             const level = parts[1]; // A1, A2, B1, B2
             const contentType = parts[2]; // listening, reading
-            const topic = parts.slice(3).join("_"); // Science, Technology, etc. (handle multi-word topics)
+            const audioProvider = parts[3]; // elevenlabs, lahajati, none (for reading)
+            const topic = parts.slice(4).join("_"); // Science, Technology, etc. (handle multi-word topics)
             
-            logger?.info("🎯 [Telegram Admin] Create content with topic", { contentType, level, topic });
+            logger?.info("🎯 [Telegram Admin] Create content with all params", { contentType, level, audioProvider, topic });
 
             // CRITICAL: Answer callback query IMMEDIATELY
             await fetch(
@@ -786,11 +862,12 @@ export function registerTelegramAdminTriggers() {
               }
             );
 
-            // Trigger workflow with topic parameter
-            logger?.info("🚀 [Telegram Admin] Triggering content creation workflow with topic...", {
+            // Trigger workflow with all parameters
+            logger?.info("🚀 [Telegram Admin] Triggering content creation workflow with all params...", {
               contentType,
               level,
               topic,
+              audioProvider,
             });
             
             // Run workflow in background
@@ -804,6 +881,7 @@ export function registerTelegramAdminTriggers() {
                     contentType,
                     level,
                     topic,
+                    audioProvider: audioProvider === "none" ? undefined : audioProvider,
                   },
                 });
                 
