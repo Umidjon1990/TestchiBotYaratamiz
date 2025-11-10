@@ -35,6 +35,8 @@
     "@types/pg": "^8.15.5",
     "ai": "^4.3.16",
     "dotenv": "^17.2.0",
+    "drizzle-kit": "^0.31.6",
+    "drizzle-orm": "^0.44.7",
     "elevenlabs": "^1.59.0",
     "exa-js": "^1.8.17",
     "inngest": "^3.40.2",

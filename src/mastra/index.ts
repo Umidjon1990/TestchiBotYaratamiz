@@ -11,6 +11,7 @@ import { sharedPostgresStorage } from "./storage";
 import { inngest, inngestServe, registerCronWorkflow } from "./inngest";
 import { contentMakerWorkflow } from "./workflows/contentMakerWorkflow";
 import { contentMakerAgent } from "./agents/contentMakerAgent";
+import { demoRoutes } from "./routes/demoRoutes";
 
 class ProductionPinoLogger extends MastraLogger {
   protected logger: pino.Logger;
@@ -212,6 +213,12 @@ export const mastra = new Mastra({
       // ...registerGithubTrigger({ ... }),
       // ...registerSlackTrigger({ ... }),
       // ...registerStripeWebhook({ ... }),
+      
+      // ======================================================================
+      // Public Demo Routes
+      // ======================================================================
+      // Public routes for viewing content demos (no authentication required)
+      ...demoRoutes,
     ],
   },
   logger:

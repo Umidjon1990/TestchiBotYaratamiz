@@ -26,6 +26,7 @@ export const generateAudio = createTool({
 
   outputSchema: z.object({
     audioUrl: z.string().describe("Public URL to the generated audio file"),
+    audioBase64: z.string().describe("Base64-encoded audio data for direct delivery"),
     duration: z.number().describe("Audio duration in seconds (estimated)"),
     success: z.boolean().describe("Whether audio generation and storage was successful"),
     message: z.string().describe("Status message"),
@@ -49,6 +50,7 @@ export const generateAudio = createTool({
         );
         return {
           audioUrl: "",
+          audioBase64: "",
           duration: 0,
           success: false,
           message:
@@ -88,6 +90,10 @@ export const generateAudio = createTool({
       const audioBuffer = Buffer.concat(chunks);
       logger?.info("📦 Audio buffered:", { size: audioBuffer.length });
       
+      // Convert buffer to base64 for Telegram delivery
+      const audioBase64 = audioBuffer.toString('base64');
+      logger?.info("📦 Audio converted to base64 for delivery");
+      
       // Convert buffer to Node.js Readable stream
       const nodeStream = Readable.from(audioBuffer);
 
@@ -104,10 +110,12 @@ export const generateAudio = createTool({
         filename,
         url,
         estimatedDuration,
+        base64Length: audioBase64.length,
       });
 
       return {
         audioUrl: url,
+        audioBase64,
         duration: estimatedDuration,
         success: true,
         message: "Audio generated successfully via ElevenLabs and stored in App Storage",
@@ -118,6 +126,7 @@ export const generateAudio = createTool({
 
       return {
         audioUrl: "",
+        audioBase64: "",
         duration: 0,
         success: false,
         message: `Audio generation/storage failed: ${error}`,

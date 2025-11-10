@@ -1,6 +1,7 @@
 import { createStep, createWorkflow } from "../inngest";
 import { z } from "zod";
 import { contentMakerAgent } from "../agents/contentMakerAgent";
+import { demoRepository } from "../storage/demoRepository";
 
 /**
  * Content Maker Workflow
@@ -32,6 +33,7 @@ const generateContentWithAgent = createStep({
     ),
     imageUrl: z.string(),
     audioUrl: z.string(),
+    audioBase64: z.string(),
     success: z.boolean(),
   }),
 
@@ -153,7 +155,7 @@ const generateContentWithAgent = createStep({
       const imageUrl = await generateImageUrl(podcastData.podcastTitle, logger);
 
       // Generate audio using helper function (direct tool call)
-      const audioUrl = await generateAudioUrl(
+      const audioData = await generateAudioData(
         podcastData.podcastContent,
         podcastData.podcastTitle,
         logger
@@ -162,7 +164,8 @@ const generateContentWithAgent = createStep({
       return {
         ...podcastData,
         imageUrl,
-        audioUrl,
+        audioUrl: audioData.audioUrl,
+        audioBase64: audioData.audioBase64,
         success: true,
       };
     } catch (error) {
@@ -190,13 +193,13 @@ async function generateImageUrl(topic: string, logger: any): Promise<string> {
 }
 
 // Helper function for audio generation using generateAudio tool
-async function generateAudioUrl(
+async function generateAudioData(
   text: string,
   title: string,
   logger: any
-): Promise<string> {
+): Promise<{ audioUrl: string; audioBase64: string }> {
   try {
-    logger?.info("🎧 [generateAudioUrl] Starting audio generation...");
+    logger?.info("🎧 [generateAudioData] Starting audio generation...");
 
     // Import the tool directly
     const { generateAudio } = await import("../tools/generateAudio");
@@ -211,19 +214,23 @@ async function generateAudioUrl(
       runtimeContext: undefined as any, // Tool doesn't strictly need runtime context
     });
 
-    if (result.success && result.audioUrl) {
-      logger?.info("✅ [generateAudioUrl] Audio generated and stored:", {
+    if (result.success && result.audioUrl && result.audioBase64) {
+      logger?.info("✅ [generateAudioData] Audio generated and stored:", {
         url: result.audioUrl,
         filename: result.filename,
+        base64Length: result.audioBase64.length,
       });
-      return result.audioUrl;
+      return {
+        audioUrl: result.audioUrl,
+        audioBase64: result.audioBase64,
+      };
     } else {
-      logger?.warn("⚠️ [generateAudioUrl] Audio generation failed:", result.message);
-      return "";
+      logger?.warn("⚠️ [generateAudioData] Audio generation failed:", result.message);
+      return { audioUrl: "", audioBase64: "" };
     }
   } catch (error) {
-    logger?.error("❌ [generateAudioUrl] Error:", { error });
-    return "";
+    logger?.error("❌ [generateAudioData] Error:", { error });
+    return { audioUrl: "", audioBase64: "" };
   }
 }
 
@@ -249,6 +256,7 @@ const sendAdminPreview = createStep({
     ),
     imageUrl: z.string(),
     audioUrl: z.string(),
+    audioBase64: z.string(),
     success: z.boolean(),
   }),
 
@@ -267,6 +275,7 @@ const sendAdminPreview = createStep({
     ),
     imageUrl: z.string(),
     audioUrl: z.string(),
+    audioBase64: z.string(),
   }),
 
   execute: async ({ inputData, mastra }) => {
@@ -286,6 +295,23 @@ const sendAdminPreview = createStep({
     }
 
     try {
+      // Create demo session in database
+      logger?.info("💾 [Step 2] Creating demo session in database...");
+      const demo = await demoRepository.createDemoSession(
+        {
+          podcastTitle: inputData.podcastTitle,
+          podcastContent: inputData.podcastContent,
+          questions: inputData.questions,
+          imageUrl: inputData.imageUrl,
+          audioUrl: inputData.audioUrl,
+        },
+        logger
+      );
+
+      // Generate public demo URL
+      const demoUrl = `${process.env.REPLIT_DOMAINS?.split(',')[0] ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : 'http://localhost:5000'}/demo/${demo.slug}`;
+      logger?.info("🌐 [Step 2] Demo URL generated", { demoUrl });
+
       const previewMessage = `
 📋 *المُحْتَوَى الجَدِيدُ جَاهِزٌ!*
 
@@ -297,6 +323,9 @@ ${inputData.podcastContent.substring(0, 400)}...
 📊 *الاخْتِبَارَاتُ:* ${inputData.questions.length} أَسْئِلَةٌ
 🎧 *الصَّوْتُ:* ${inputData.audioUrl ? "✅ تَمَّ إِنْشَاؤُهُ" : "⚠️ لَمْ يَتِمَّ الإِنْشَاءُ"}
 🖼️ *الصُّورَةُ:* ${inputData.imageUrl ? "✅ جَاهِزَةٌ" : "⚠️ غَيْرُ جَاهِزَةٍ"}
+
+🌐 *مُعَايَنَةُ العَرْضِ التَّوْضِيحِيِّ:*
+${demoUrl}
 
 *يُرْجَى التَّأْكِيدُ أَوْ إِعَادَةُ الإِنْشَاءِ.*
       `.trim();
@@ -320,11 +349,11 @@ ${inputData.podcastContent.substring(0, 400)}...
         throw new Error(`Telegram API error: ${response.status}`);
       }
 
-      logger?.info("✅ [Step 2] Preview sent to admin successfully");
+      logger?.info("✅ [Step 2] Preview sent to admin successfully with demo URL");
 
       return {
         previewSent: true,
-        message: "Preview sent to admin. Manual approval required to continue.",
+        message: "Preview sent to admin with public demo URL. Manual approval required to continue.",
         ...inputData,
       };
     } catch (error) {
@@ -361,6 +390,7 @@ const sendToTelegramChannel = createStep({
     ),
     imageUrl: z.string(),
     audioUrl: z.string(),
+    audioBase64: z.string(),
   }),
 
   outputSchema: z.object({
@@ -416,24 +446,33 @@ const sendToTelegramChannel = createStep({
       }
 
       // Step 2: Send audio file (if available)
-      if (inputData.audioUrl && inputData.audioUrl !== "") {
-        logger?.info("🎧 [Step 3] Sending audio file to Telegram...");
+      if (inputData.audioBase64 && inputData.audioBase64 !== "") {
+        logger?.info("🎧 [Step 3] Sending audio file to Telegram via multipart/form-data...");
         
         try {
+          // Convert base64 to buffer
+          const audioBuffer = Buffer.from(inputData.audioBase64, 'base64');
+          logger?.info("📦 [Step 3] Audio buffer created", { size: audioBuffer.length });
+          
+          // Create FormData for multipart upload
+          const FormData = (await import('node:buffer')).Blob ? globalThis.FormData : (await import('formdata-node')).FormData;
+          const formData = new FormData();
+          
+          // Create Blob from buffer
+          const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
+          
+          // Append fields to FormData
+          formData.append('chat_id', channelId);
+          formData.append('audio', audioBlob, 'podcast.mp3');
+          formData.append('title', inputData.podcastTitle);
+          formData.append('caption', '🎧 *استمع للبودكاست:*');
+          formData.append('parse_mode', 'Markdown');
+          
           const audioResponse = await fetch(
             `https://api.telegram.org/bot${telegramBotToken}/sendAudio`,
             {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                chat_id: channelId,
-                audio: inputData.audioUrl,
-                title: inputData.podcastTitle,
-                caption: "🎧 *استمع للبودكاست:*",
-                parse_mode: "Markdown",
-              }),
+              body: formData as any,
             }
           );
 
@@ -441,7 +480,7 @@ const sendToTelegramChannel = createStep({
             const errorText = await audioResponse.text();
             logger?.warn("⚠️ Failed to send audio", { error: errorText });
           } else {
-            logger?.info("✅ Audio file sent successfully");
+            logger?.info("✅ Audio file sent successfully via buffer");
           }
         } catch (audioError) {
           logger?.warn("⚠️ Audio sending failed", { error: audioError });
