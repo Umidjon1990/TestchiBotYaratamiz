@@ -365,16 +365,16 @@ ${demoUrl}
           const audioBuffer = Buffer.from(audioArrayBuffer);
           logger?.info("📦 [Step 2] Audio fetched and buffered", { size: audioBuffer.length });
           
-          // Create FormData for multipart upload
-          const FormData = (await import('node:buffer')).Blob ? globalThis.FormData : (await import('formdata-node')).FormData;
-          const formData = new FormData();
-          
-          // Create Blob from buffer
-          const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
+          // Use form-data package for better compatibility
+          const FormDataPkg = (await import('form-data')).default;
+          const formData = new FormDataPkg();
           
           // Append fields to FormData
           formData.append('chat_id', adminChatId);
-          formData.append('audio', audioBlob, 'podcast-preview.mp3');
+          formData.append('audio', audioBuffer, {
+            filename: 'podcast-preview.mp3',
+            contentType: 'audio/mpeg',
+          });
           formData.append('title', inputData.podcastTitle);
           formData.append('caption', '🎧 معاينة الصوت');
           formData.append('parse_mode', 'Markdown');
@@ -383,18 +383,26 @@ ${demoUrl}
             `https://api.telegram.org/bot${telegramBotToken}/sendAudio`,
             {
               method: "POST",
+              headers: formData.getHeaders(),
               body: formData as any,
             }
           );
 
           if (!audioResponse.ok) {
             const errorText = await audioResponse.text();
-            logger?.warn("⚠️ Failed to send audio preview", { error: errorText });
+            logger?.warn("⚠️ Failed to send audio preview to Telegram", { 
+              status: audioResponse.status,
+              error: errorText 
+            });
           } else {
             logger?.info("✅ Audio preview sent to admin successfully");
           }
-        } catch (audioError) {
-          logger?.warn("⚠️ Audio preview sending failed", { error: audioError });
+        } catch (audioError: any) {
+          logger?.error("❌ Audio preview sending failed", { 
+            errorMessage: audioError?.message,
+            errorStack: audioError?.stack,
+            errorName: audioError?.name
+          });
         }
       }
 
@@ -511,16 +519,16 @@ const sendToTelegramChannel = createStep({
           const audioBuffer = Buffer.from(audioArrayBuffer);
           logger?.info("📦 [Step 3] Audio fetched and buffered", { size: audioBuffer.length });
           
-          // Create FormData for multipart upload
-          const FormData = (await import('node:buffer')).Blob ? globalThis.FormData : (await import('formdata-node')).FormData;
-          const formData = new FormData();
-          
-          // Create Blob from buffer
-          const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
+          // Use form-data package for better compatibility
+          const FormDataPkg = (await import('form-data')).default;
+          const formData = new FormDataPkg();
           
           // Append fields to FormData
           formData.append('chat_id', channelId);
-          formData.append('audio', audioBlob, 'podcast.mp3');
+          formData.append('audio', audioBuffer, {
+            filename: 'podcast.mp3',
+            contentType: 'audio/mpeg',
+          });
           formData.append('title', inputData.podcastTitle);
           formData.append('caption', '🎧 *استمع للبودكاست:*');
           formData.append('parse_mode', 'Markdown');
@@ -529,18 +537,25 @@ const sendToTelegramChannel = createStep({
             `https://api.telegram.org/bot${telegramBotToken}/sendAudio`,
             {
               method: "POST",
+              headers: formData.getHeaders(),
               body: formData as any,
             }
           );
 
           if (!audioResponse.ok) {
             const errorText = await audioResponse.text();
-            logger?.warn("⚠️ Failed to send audio", { error: errorText });
+            logger?.warn("⚠️ Failed to send audio to channel", { 
+              status: audioResponse.status,
+              error: errorText 
+            });
           } else {
-            logger?.info("✅ Audio file sent successfully via fetched buffer");
+            logger?.info("✅ Audio file sent successfully to channel");
           }
-        } catch (audioError) {
-          logger?.warn("⚠️ Audio fetch/send failed", { error: audioError });
+        } catch (audioError: any) {
+          logger?.error("❌ Audio fetch/send failed in Step 3", { 
+            errorMessage: audioError?.message,
+            errorStack: audioError?.stack 
+          });
         }
       }
 
