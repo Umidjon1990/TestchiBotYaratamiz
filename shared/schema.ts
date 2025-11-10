@@ -20,7 +20,9 @@ export const demoSessions = pgTable("demo_sessions", {
   >(),
   imageUrl: text("image_url").notNull(),
   audioUrl: text("audio_url").notNull(),
-  status: varchar("status", { length: 50 }).notNull().default("draft"), // draft, approved, posted
+  status: varchar("status", { length: 50 }).notNull().default("draft"), // draft, approved, rejected, posted
+  contentType: varchar("content_type", { length: 20 }).notNull().default("podcast"), // podcast, listening, reading
+  level: varchar("level", { length: 5 }).default("B1"), // A1, A2, B1, B2
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
