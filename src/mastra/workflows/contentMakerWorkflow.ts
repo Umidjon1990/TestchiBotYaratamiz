@@ -30,6 +30,7 @@ const generateContentWithAgent = createStep({
         explanation: z.string(),
       })
     ),
+    imageUrl: z.string(),
     audioUrl: z.string(),
     success: z.boolean(),
   }),
@@ -39,26 +40,28 @@ const generateContentWithAgent = createStep({
     logger?.info("🤖 [Step 1] Using Content Maker Agent to generate all content...");
 
     try {
-      // Agent'dan podcast va test yaratishni so'raymiz
+      // طلب من الوكيل إنشاء البودكاست والاختبارات باللغة العربية
       const prompt = `
-Iltimos, quyidagi ishlarni bajaring:
+الرجاء القيام بالمهام التالية باللغة العربية:
 
-1. AI yoki ta'lim sohasidagi qiziqarli yangiliklardan bitta mavzu tanlang
-2. Shu mavzuda A2-B1 darajasidagi podcast matn yarating (150-200 so'z)
-3. Podcast bo'yicha 3 dona multiple choice test yarating
+1. اختر موضوعاً مثيراً من أخبار الذكاء الاصطناعي أو التعليم
+2. أنشئ نص بودكاست بمستوى A2-B1 عن هذا الموضوع (150-200 كلمة)
+3. أنشئ 3 أسئلة اختيار من متعدد حول البودكاست
 
-Har bir test uchun:
-- Savol matni
-- 4 ta variant (A, B, C, D)
-- To'g'ri javob raqami (0-3)
-- Qisqa izoh
+لكل سؤال:
+- نص السؤال
+- 4 خيارات (A, B, C, D)
+- رقم الإجابة الصحيحة (0-3)
+- شرح مختصر
 
-Natijani JSON formatda qaytaring:
+أرجع النتيجة بصيغة JSON:
 {
   "podcastTitle": "...",
   "podcastContent": "...",
   "questions": [...]
 }
+
+مهم جداً: يجب أن يكون كل المحتوى باللغة العربية!
 `;
 
       const response = await contentMakerAgent.generateLegacy(
@@ -73,69 +76,85 @@ Natijani JSON formatda qaytaring:
         text: response.text.substring(0, 100),
       });
 
-      // Parse agent response (real implementation'da structured output ishlatiladi)
-      // Demo uchun hardcoded data qaytaramiz
-      const podcastData = {
-        podcastTitle: "Podcast: Sun'iy intellekt va til o'rganish",
-        podcastContent: `
-Assalomu alaykum, aziz tinglovchilar!
+      // Parse agent response - try to extract JSON
+      let podcastData;
+      try {
+        // Try to find JSON in the response
+        const jsonMatch = response.text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          podcastData = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error("No JSON found in response");
+        }
+      } catch (parseError) {
+        // Fallback: use Arabic default content
+        logger?.warn("⚠️ Failed to parse JSON, using default Arabic content");
+        podcastData = {
+          podcastTitle: "الذكاء الاصطناعي وتعلم اللغات",
+          podcastContent: `
+السلام عليكم، أعزائي المستمعين!
 
-Bugun biz siz bilan "Sun'iy intellekt va til o'rganish" mavzusida gaplashamiz.
+اليوم سنتحدث معكم عن موضوع "الذكاء الاصطناعي وتعلم اللغات".
 
-Zamonaviy dunyo juda tez o'zgarmoqda. Har kuni yangi texnologiyalar paydo bo'lmoqda. Bu texnologiyalar bizning hayotimizni osonlashtirmoqda.
+العالم الحديث يتغير بسرعة كبيرة. كل يوم تظهر تقنيات جديدة. هذه التقنيات تسهل حياتنا.
 
-Sun'iy intellekt hozirgi paytda eng mashhur texnologiya hisoblanadi. U ko'plab sohalarda ishlatilmoqda. Ta'lim sohasida ham AI juda foydali.
+الذكاء الاصطناعي يعتبر الآن أكثر التقنيات شهرة. يستخدم في مجالات كثيرة. في مجال التعليم أيضاً، الذكاء الاصطناعي مفيد جداً.
 
-Masalan, til o'rganish uchun zamonaviy ilovalar bor. Bu ilovalar talabalarning xatolarini topadi va tuzatadi. Ular har bir talabaga individual yondashuv qo'llaydi.
+على سبيل المثال، توجد تطبيقات حديثة لتعلم اللغات. هذه التطبيقات تجد أخطاء الطلاب وتصححها. تستخدم نهجاً فردياً لكل طالب.
 
-O'qituvchilar ham AI dan foydalanmoqda. Bu ularga vaqt tejashda yordam beradi. Ular ko'proq vaqtni talabalar bilan muloqotga sarflaydi.
+المعلمون أيضاً يستخدمون الذكاء الاصطناعي. هذا يساعدهم في توفير الوقت. يقضون وقتاً أكثر في التواصل مع الطلاب.
 
-Lekin texnologiya faqat vosita. Eng muhimi - bilim olishga bo'lgan ishtiyoq va mehnat.
+لكن التكنولوجيا هي مجرد وسيلة. الأهم هو الشغف بالمعرفة والاجتهاد.
 
-Tinglaganingiz uchun rahmat! Keyingi podcastda yana uchrashguncha!
-        `.trim(),
-        questions: [
-          {
-            question: "Podcast qaysi mavzuga bag'ishlangan?",
-            options: [
-              "Sport va sog'liq turmush",
-              "Sun'iy intellekt va ta'lim",
-              "Tarix va madaniyat",
-              "Iqtisodiyot va biznes",
-            ],
-            correctAnswer: 1,
-            explanation: "Podcast sun'iy intellekt va ta'lim sohasidagi yangiliklardan bahslaydi.",
-          },
-          {
-            question: "AI texnologiyasining ta'limdagi asosiy afzalligi nima?",
-            options: [
-              "Faqat testlar yaratadi",
-              "O'qituvchilarni almashtiradi",
-              "Har bir talabaga individual yondashuv",
-              "Faqat til o'rganishda ishlatiladi",
-            ],
-            correctAnswer: 2,
-            explanation: "AI har bir talabaning ehtiyojiga qarab shaxsiylashtirilgan ta'lim berishi mumkin.",
-          },
-          {
-            question: "Podcastda eng muhim narsa nima deb aytilgan?",
-            options: [
-              "Eng yangi texnologiyaga ega bo'lish",
-              "Ko'p pul sarflash",
-              "Bilim olishga bo'lgan ishtiyoq va mehnat",
-              "Faqat AI dan foydalanish",
-            ],
-            correctAnswer: 2,
-            explanation: "Texnologiya faqat vosita, asosiy narsa - o'rganishga bo'lgan ishtiyoq va mehnat.",
-          },
-        ],
-      };
+شكراً لاستماعكم! نلتقي في البودكاست القادم!
+          `.trim(),
+          questions: [
+            {
+              question: "ما هو موضوع البودكاست؟",
+              options: [
+                "الرياضة والصحة",
+                "الذكاء الاصطناعي والتعليم",
+                "التاريخ والثقافة",
+                "الاقتصاد والأعمال",
+              ],
+              correctAnswer: 1,
+              explanation: "البودكاست يناقش الأخبار في مجال الذكاء الاصطناعي والتعليم.",
+            },
+            {
+              question: "ما هي الميزة الأساسية للذكاء الاصطناعي في التعليم؟",
+              options: [
+                "فقط ينشئ الاختبارات",
+                "يستبدل المعلمين",
+                "نهج فردي لكل طالب",
+                "يستخدم فقط لتعلم اللغات",
+              ],
+              correctAnswer: 2,
+              explanation: "الذكاء الاصطناعي يمكنه تقديم تعليم شخصي حسب احتياجات كل طالب.",
+            },
+            {
+              question: "ما هو الأهم حسب البودكاست؟",
+              options: [
+                "امتلاك أحدث التقنيات",
+                "إنفاق الكثير من المال",
+                "الشغف بالمعرفة والاجتهاد",
+                "استخدام الذكاء الاصطناعي فقط",
+              ],
+              correctAnswer: 2,
+              explanation: "التكنولوجيا مجرد وسيلة، الأهم هو الشغف بالتعلم والاجتهاد.",
+            },
+          ],
+        };
+      }
+
+      // Generate image for podcast topic
+      const imageUrl = await generateImageUrl(podcastData.podcastTitle, logger);
 
       // Generate audio using ElevenLabs
       const audioUrl = await generateAudioUrl(podcastData.podcastContent, logger);
 
       return {
         ...podcastData,
+        imageUrl,
         audioUrl,
         success: true,
       };
@@ -145,6 +164,23 @@ Tinglaganingiz uchun rahmat! Keyingi podcastda yana uchrashguncha!
     }
   },
 });
+
+// Helper function for image generation
+async function generateImageUrl(topic: string, logger: any): Promise<string> {
+  try {
+    logger?.info("🎨 Generating image for topic:", topic);
+    
+    // Using Unsplash for free educational images
+    const query = encodeURIComponent("artificial intelligence education technology");
+    const imageUrl = `https://source.unsplash.com/800x600/?${query}`;
+    
+    logger?.info("✅ Image URL generated");
+    return imageUrl;
+  } catch (error) {
+    logger?.error("❌ Image generation error", { error });
+    return "";
+  }
+}
 
 // Helper function for audio generation
 async function generateAudioUrl(text: string, logger: any): Promise<string> {
@@ -156,7 +192,7 @@ async function generateAudioUrl(text: string, logger: any): Promise<string> {
   }
 
   try {
-    const voiceId = "21m00Tcm4TlvDq8ikWAM";
+    const voiceId = "pNInz6obpgDQGcFmaJgB"; // Adam - Arabic voice
 
     const response = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
@@ -212,6 +248,7 @@ const sendAdminPreview = createStep({
         explanation: z.string(),
       })
     ),
+    imageUrl: z.string(),
     audioUrl: z.string(),
     success: z.boolean(),
   }),
@@ -229,6 +266,7 @@ const sendAdminPreview = createStep({
         explanation: z.string(),
       })
     ),
+    imageUrl: z.string(),
     audioUrl: z.string(),
   }),
 
@@ -321,6 +359,7 @@ const sendToTelegramChannel = createStep({
         explanation: z.string(),
       })
     ),
+    imageUrl: z.string(),
     audioUrl: z.string(),
   }),
 
@@ -347,9 +386,37 @@ const sendToTelegramChannel = createStep({
     }
 
     try {
-      // Format tests for Telegram
-      let messageText = `🎙️ *${inputData.podcastTitle}*\n\n`;
-      messageText += `📝 *Bugungi Testlar:*\n\n`;
+      // Step 1: Send image with podcast content caption
+      if (inputData.imageUrl && inputData.imageUrl !== "") {
+        logger?.info("🖼️ [Step 3] Sending image with content...");
+        
+        const caption = `🎙️ *${inputData.podcastTitle}*\n\n${inputData.podcastContent}`;
+        
+        const imageResponse = await fetch(
+          `https://api.telegram.org/bot${telegramBotToken}/sendPhoto`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              chat_id: channelId,
+              photo: inputData.imageUrl,
+              caption: caption,
+              parse_mode: "Markdown",
+            }),
+          }
+        );
+
+        if (!imageResponse.ok) {
+          logger?.warn("⚠️ Failed to send image, sending text instead");
+        } else {
+          logger?.info("✅ Image and content sent");
+        }
+      }
+
+      // Step 2: Send questions
+      let messageText = `📝 *اختبارات اليوم:*\n\n`;
 
       inputData.questions.forEach((q, index) => {
         messageText += `*${index + 1}. ${q.question}*\n`;
@@ -361,14 +428,6 @@ const sendToTelegramChannel = createStep({
         messageText += `\n💡 _${q.explanation}_\n\n`;
       });
 
-      // Send audio if available
-      if (inputData.audioUrl && inputData.audioUrl !== "") {
-        logger?.info("🎧 [Step 3] Sending audio...");
-        // NOTE: This will fail until audio storage is properly configured
-        // For MVP, we skip audio sending
-      }
-
-      // Send questions
       const response = await fetch(
         `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
         {
@@ -388,7 +447,7 @@ const sendToTelegramChannel = createStep({
         throw new Error(`Telegram API error: ${response.status}`);
       }
 
-      logger?.info("✅ [Step 3] Content sent to Telegram channel");
+      logger?.info("✅ [Step 3] All content sent to Telegram channel");
 
       return {
         success: true,

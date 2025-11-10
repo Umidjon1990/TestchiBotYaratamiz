@@ -7,6 +7,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { generatePodcastContent } from "../tools/generatePodcastContent";
 import { generateQuestions } from "../tools/generateQuestions";
 import { generateAudio } from "../tools/generateAudio";
+import { generateImage } from "../tools/generateImage";
 import { requestAdminApproval } from "../tools/requestAdminApproval";
 import { sendToTelegram } from "../tools/sendToTelegram";
 
@@ -74,6 +75,7 @@ export const contentMakerAgent = new Agent({
     generatePodcastContent,
     generateQuestions,
     generateAudio,
+    generateImage,
     requestAdminApproval,
     sendToTelegram,
   },
