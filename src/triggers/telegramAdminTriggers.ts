@@ -178,6 +178,7 @@ export function registerTelegramAdminTriggers() {
             const [_, contentType, level] = callbackData.split("_"); // e.g., "create_listening_A2"
             logger?.info("🎯 [Telegram Admin] Create content", { contentType, level });
 
+            // CRITICAL: Answer callback query IMMEDIATELY to prevent Telegram from retrying
             await fetch(
               `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`,
               {
@@ -190,60 +191,63 @@ export function registerTelegramAdminTriggers() {
               }
             );
 
-            // Trigger workflow with manual parameters
+            // Send immediate confirmation message
+            await fetch(
+              `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  text: `⏳ جَارٍ إِنْشَاءُ ${contentType} - ${level}...\n\nيُرْجَى الِانْتِظَارُ، سَتَتَلَقَّى مُعَايَنَةً قَرِيبًا...`,
+                  parse_mode: "Markdown",
+                }),
+              }
+            );
+
+            // Trigger workflow with manual parameters (async, no await)
             logger?.info("🚀 [Telegram Admin] Triggering content creation workflow...", {
               contentType,
               level,
             });
             
-            try {
-              const { contentMakerWorkflow } = await import("../mastra/workflows/contentMakerWorkflow");
-              
-              // Trigger workflow directly with manual parameters
-              const run = await contentMakerWorkflow.createRunAsync();
-              const result = await run.start({
-                inputData: {
-                  contentType,
-                  level,
-                },
-              });
-              
-              logger?.info("✅ [Telegram Admin] Workflow triggered successfully", {
-                status: result?.status,
-              });
-              
-              // Send confirmation to admin
-              await fetch(
-                `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
-                {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    chat_id: chatId,
-                    text: `✅ تَمَّ! يُنْشَأُ ${contentType} - ${level}\n\nسَتَتَلَقَّى مُعَايَنَةً قَرِيبًا...`,
-                    parse_mode: "Markdown",
-                  }),
-                }
-              );
-            } catch (triggerError: any) {
-              logger?.error("❌ [Telegram Admin] Failed to trigger workflow", {
-                error: triggerError?.message,
-                stack: triggerError?.stack,
-              });
-              
-              // Send error to admin
-              await fetch(
-                `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
-                {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    chat_id: chatId,
-                    text: `❌ خَطَأٌ: ${triggerError?.message}`,
-                  }),
-                }
-              );
-            }
+            // Run workflow in background without blocking response
+            (async () => {
+              try {
+                const { contentMakerWorkflow } = await import("../mastra/workflows/contentMakerWorkflow");
+                
+                // Trigger workflow directly with manual parameters
+                const run = await contentMakerWorkflow.createRunAsync();
+                const result = await run.start({
+                  inputData: {
+                    contentType,
+                    level,
+                  },
+                });
+                
+                logger?.info("✅ [Telegram Admin] Workflow triggered successfully", {
+                  status: result?.status,
+                });
+              } catch (triggerError: any) {
+                logger?.error("❌ [Telegram Admin] Failed to trigger workflow", {
+                  error: triggerError?.message,
+                  stack: triggerError?.stack,
+                });
+                
+                // Send error to admin
+                await fetch(
+                  `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      chat_id: chatId,
+                      text: `❌ خَطَأٌ فِي إِنْشَاءِ المُحْتَوَى: ${triggerError?.message}`,
+                    }),
+                  }
+                );
+              }
+            })();
           }
 
             return c.json({ ok: true });
