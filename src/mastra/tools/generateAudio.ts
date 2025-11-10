@@ -73,15 +73,29 @@ export const generateAudio = createTool({
         outputFormat: "mp3_44100_128",
       });
 
-      logger?.info("📦 [generateAudio] Audio stream received, uploading to App Storage...");
+      logger?.info("📦 [generateAudio] Audio stream received, buffering and uploading to App Storage...");
 
-      // Convert web ReadableStream to Node.js Readable stream
-      const nodeStream = Readable.from(audioStream as any);
+      // Buffer the audio stream (ElevenLabs returns web ReadableStream)
+      const chunks: Uint8Array[] = [];
+      const reader = audioStream.getReader();
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) chunks.push(value);
+      }
+      
+      const audioBuffer = Buffer.concat(chunks);
+      logger?.info("📦 Audio buffered:", { size: audioBuffer.length });
+      
+      // Convert buffer to Node.js Readable stream
+      const nodeStream = Readable.from(audioBuffer);
 
       // Upload audio stream to App Storage
       const { url, filename } = await appStorageClient.uploadAudioStream(
         nodeStream,
-        context.title
+        context.title,
+        logger
       );
 
       const estimatedDuration = Math.ceil(context.text.length / 10); // ~10 characters per second

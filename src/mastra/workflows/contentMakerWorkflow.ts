@@ -1,7 +1,6 @@
 import { createStep, createWorkflow } from "../inngest";
 import { z } from "zod";
 import { contentMakerAgent } from "../agents/contentMakerAgent";
-import { generateAudio } from "../tools/generateAudio";
 
 /**
  * Content Maker Workflow
@@ -153,26 +152,12 @@ const generateContentWithAgent = createStep({
       // Generate image for podcast topic
       const imageUrl = await generateImageUrl(podcastData.podcastTitle, logger);
 
-      // Generate audio using tool (ElevenLabs + App Storage)
-      logger?.info("🎧 [Step 1] Calling generateAudio tool...");
-      const audioResult = await generateAudio.execute({
-        context: {
-          text: podcastData.podcastContent,
-          title: podcastData.podcastTitle,
-        },
-        mastra,
-        runtimeContext: {},
-      });
-      
-      const audioUrl = audioResult?.audioUrl || "";
-      if (audioResult?.success) {
-        logger?.info("✅ [Step 1] Audio generated and stored:", {
-          url: audioUrl,
-          filename: audioResult?.filename,
-        });
-      } else {
-        logger?.warn("⚠️ [Step 1] Audio generation failed:", audioResult?.message);
-      }
+      // Generate audio using helper function (direct tool call)
+      const audioUrl = await generateAudioUrl(
+        podcastData.podcastContent,
+        podcastData.podcastTitle,
+        logger
+      );
 
       return {
         ...podcastData,
@@ -200,6 +185,44 @@ async function generateImageUrl(topic: string, logger: any): Promise<string> {
     return imageUrl;
   } catch (error) {
     logger?.error("❌ Image generation error", { error });
+    return "";
+  }
+}
+
+// Helper function for audio generation using generateAudio tool
+async function generateAudioUrl(
+  text: string,
+  title: string,
+  logger: any
+): Promise<string> {
+  try {
+    logger?.info("🎧 [generateAudioUrl] Starting audio generation...");
+
+    // Import the tool directly
+    const { generateAudio } = await import("../tools/generateAudio");
+
+    // Call the tool with proper parameters
+    const result = await generateAudio.execute({
+      context: {
+        text,
+        title,
+      },
+      mastra: undefined, // Will use logger from context
+      runtimeContext: undefined as any, // Tool doesn't strictly need runtime context
+    });
+
+    if (result.success && result.audioUrl) {
+      logger?.info("✅ [generateAudioUrl] Audio generated and stored:", {
+        url: result.audioUrl,
+        filename: result.filename,
+      });
+      return result.audioUrl;
+    } else {
+      logger?.warn("⚠️ [generateAudioUrl] Audio generation failed:", result.message);
+      return "";
+    }
+  } catch (error) {
+    logger?.error("❌ [generateAudioUrl] Error:", { error });
     return "";
   }
 }

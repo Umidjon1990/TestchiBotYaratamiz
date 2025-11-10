@@ -7,17 +7,23 @@ import { Readable } from "stream";
 class AppStorageClient {
   private client: Client;
   private initialized: boolean = false;
+  private bucketName: string = "audio-files";
 
   constructor() {
-    this.client = new Client();
+    // Initialize client with our specific bucket ID
+    // Note: bucketId can be found in App Storage panel or use bucket name
+    this.client = new Client({
+      bucketId: this.bucketName,
+    });
   }
 
   /**
-   * Initialize the App Storage client
+   * Initialize the App Storage client with specific bucket
    */
   async init(): Promise<void> {
     if (!this.initialized) {
-      // Client is auto-initialized, just mark as ready
+      // Client auto-initializes on first use
+      // Just set bucket via environment or constructor
       this.initialized = true;
     }
   }
@@ -30,7 +36,8 @@ class AppStorageClient {
    */
   async uploadAudioStream(
     audioStream: Readable,
-    podcastTitle: string
+    podcastTitle: string,
+    logger?: any
   ): Promise<{ url: string; filename: string }> {
     try {
       // Ensure client is initialized
@@ -47,14 +54,24 @@ class AppStorageClient {
       const filename = `audio/${year}/${month}/${slug}-${timestamp}.mp3`;
 
       // Upload stream to App Storage
+      logger?.info("📤 Uploading to bucket:", this.bucketName);
       await this.client.uploadFromStream(filename, audioStream);
+      logger?.info("✅ Upload complete");
 
-      // Generate public URL
-      // Note: Replit App Storage automatically serves files at a public URL
-      // The URL pattern is: https://<repl-name>.<username>.repl.co/<bucket-name>/<filename>
-      const url = `${process.env.REPLIT_DOMAINS?.split(',')[0] || 'localhost'}/${filename}`;
-
-      return { url: `https://${url}`, filename };
+      // Generate public URL for App Storage
+      // Pattern: https://<domain>/_app_storage/<bucket-name>/<filename>
+      const domain = process.env.REPLIT_DOMAINS?.split(',')[0];
+      
+      if (!domain) {
+        // Local development fallback
+        const url = `http://localhost:5000/_app_storage/${this.bucketName}/${filename}`;
+        logger?.info("📍 Local public URL generated:", url);
+        return { url, filename };
+      }
+      
+      const url = `https://${domain}/_app_storage/${this.bucketName}/${filename}`;
+      logger?.info("📍 Public URL generated:", url);
+      return { url, filename };
     } catch (error) {
       throw new Error(`Failed to upload audio to App Storage: ${error}`);
     }
