@@ -2,7 +2,7 @@ modules = ["nodejs-22"]
 
 [agent]
 stack = "AGENT_STACK"
-integrations = ["agentstack-trigger-time_based:1.0.0"]
+integrations = ["agentstack-trigger-time_based:1.0.0", "javascript_openai_ai_integrations:1.0.0"]
 
 [nix]
 channel = "stable-24_11"
@@ -27,6 +27,10 @@ externalPort = 80
 
 [[ports]]
 localPort = 8289
+
+[[ports]]
+localPort = 41299
+externalPort = 3003
 
 [[ports]]
 localPort = 50052
