@@ -189,8 +189,60 @@ export function registerTelegramAdminTriggers() {
               }
             );
 
-            // TODO: Trigger workflow to create content
-            logger?.info("🚀 [Telegram Admin] Triggering content creation workflow...");
+            // Trigger workflow with manual parameters
+            logger?.info("🚀 [Telegram Admin] Triggering content creation workflow...", {
+              contentType,
+              level,
+            });
+            
+            try {
+              const { contentMakerWorkflow } = await import("../mastra/workflows/contentMakerWorkflow");
+              
+              // Trigger workflow directly with manual parameters
+              const run = await contentMakerWorkflow.createRunAsync();
+              const result = await run.start({
+                inputData: {
+                  contentType,
+                  level,
+                },
+              });
+              
+              logger?.info("✅ [Telegram Admin] Workflow triggered successfully", {
+                status: result?.status,
+              });
+              
+              // Send confirmation to admin
+              await fetch(
+                `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    chat_id: chatId,
+                    text: `✅ تَمَّ! يُنْشَأُ ${contentType} - ${level}\n\nسَتَتَلَقَّى مُعَايَنَةً قَرِيبًا...`,
+                    parse_mode: "Markdown",
+                  }),
+                }
+              );
+            } catch (triggerError: any) {
+              logger?.error("❌ [Telegram Admin] Failed to trigger workflow", {
+                error: triggerError?.message,
+                stack: triggerError?.stack,
+              });
+              
+              // Send error to admin
+              await fetch(
+                `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    chat_id: chatId,
+                    text: `❌ خَطَأٌ: ${triggerError?.message}`,
+                  }),
+                }
+              );
+            }
           }
 
             return c.json({ ok: true });
@@ -200,8 +252,9 @@ export function registerTelegramAdminTriggers() {
           if (payload.message) {
             const message = payload.message;
             
+            // Ignore non-text messages (polls, media, etc.)
             if (!message.text) {
-              return c.json({ ok: false, message: "No message text found" }, 400);
+              return c.json({ ok: true });
             }
 
             const chatId = message.chat.id;
@@ -248,8 +301,8 @@ export function registerTelegramAdminTriggers() {
             return c.json({ ok: true });
           }
 
-          // Unknown payload type
-          return c.json({ ok: false, message: "Unknown payload type" }, 400);
+          // Unknown payload type - ignore (polls, channel posts, etc.)
+          return c.json({ ok: true });
           
         } catch (error: any) {
           logger?.error("❌ [Telegram Admin] Webhook handler error", {

@@ -18,6 +18,8 @@ export interface CreateDemoSessionInput {
   }>;
   imageUrl: string;
   audioUrl: string;
+  contentType?: string;
+  level?: string;
 }
 
 export interface UpdateDemoSessionInput {
@@ -58,6 +60,8 @@ export const demoRepository = {
           questions: input.questions,
           imageUrl: input.imageUrl,
           audioUrl: input.audioUrl,
+          contentType: input.contentType || "podcast",
+          level: input.level || "B1",
           status: "draft",
         })
         .returning();

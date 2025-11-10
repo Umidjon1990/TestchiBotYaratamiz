@@ -19,7 +19,10 @@ const generateContentWithAgent = createStep({
   id: "generate-content-with-agent",
   description: "Uses AI agent to generate podcast content, questions, and audio",
 
-  inputSchema: z.object({}),
+  inputSchema: z.object({
+    contentType: z.enum(["podcast", "listening", "reading"]).default("podcast"),
+    level: z.enum(["A1", "A2", "B1", "B2"]).default("B1"),
+  }),
 
   outputSchema: z.object({
     podcastTitle: z.string(),
@@ -33,22 +36,35 @@ const generateContentWithAgent = createStep({
       })
     ),
     imageUrl: z.string(),
+    audioUrl: z.string(),
     audioFilename: z.string(),
+    contentType: z.string(),
+    level: z.string(),
     success: z.boolean(),
   }),
 
-  execute: async ({ mastra }) => {
+  execute: async ({ inputData, mastra }) => {
     const logger = mastra?.getLogger();
-    logger?.info("🤖 [Step 1] Using Content Maker Agent to generate all content...");
+    const { contentType = "podcast", level = "B1" } = inputData;
+    
+    logger?.info("🤖 [Step 1] Using Content Maker Agent to generate content", {
+      contentType,
+      level,
+    });
 
     try {
-      // طلب من الوكيل إنشاء البودكاست والاختبارات باللغة العربية
+      // Dynamic prompt based on contentType and level
+      const contentTypeArabic = contentType === "listening" ? "تِنْجْلَاش (مُحْتَوَى صَوْتِيّ)" : contentType === "reading" ? "أُوقِيش (مُحْتَوَى قِرَائِيّ)" : "بُودْكَاسْت";
+      
       const prompt = `
 الرجاء القيام بالمهام التالية باللغة العربية مع الحركات (التشكيل الكامل):
 
+نوع المحتوى: ${contentTypeArabic}
+المستوى: ${level}
+
 1. اختر موضوعاً مثيراً من أخبار الذكاء الاصطناعي أو التعليم
-2. **مُهِمٌّ جِدًّا:** أنشئ نص بودكاست بمستوى A2-B1 عن هذا الموضوع (20 كَلِمَةً فَقَطْ - لِلاخْتِبَارِ!) مع التشكيل الكامل
-3. أنشئ 2 أسئلة اختيار من متعدد حول البودكاست مع التشكيل (لِلاخْتِبَارِ فَقَطْ)
+2. **مُهِمٌّ جِدًّا:** أنشئ نص ${contentTypeArabic} بمستوى ${level} عن هذا الموضوع (20 كَلِمَةً فَقَطْ - لِلاخْتِبَارِ!) مع التشكيل الكامل
+3. أنشئ 2 أسئلة اختيار من متعدد حول المحتوى مع التشكيل (لِلاخْتِبَارِ فَقَطْ)
 
 لكل سؤال:
 - نص السؤال
@@ -67,6 +83,7 @@ const generateContentWithAgent = createStep({
 - يجب أن يكون كل المحتوى باللغة العربية الفصحى
 - ضع الحركات (الفتحة، الضمة، الكسرة، السكون، الشدة) على جميع الكلمات
 - استخدم التشكيل الكامل لمساعدة المتعلمين على القراءة الصحيحة
+- تأكد أن مستوى الصعوبة يتناسب مع ${level}
 `;
 
       const response = await contentMakerAgent.generateLegacy(
@@ -137,7 +154,10 @@ const generateContentWithAgent = createStep({
       return {
         ...podcastData,
         imageUrl,
+        audioUrl: audioData.audioUrl || "",
         audioFilename: audioData.filename || "",
+        contentType,
+        level,
         success: true,
       };
     } catch (error) {
@@ -228,7 +248,10 @@ const sendAdminPreview = createStep({
       })
     ),
     imageUrl: z.string(),
+    audioUrl: z.string(),
     audioFilename: z.string(),
+    contentType: z.string(),
+    level: z.string(),
     success: z.boolean(),
   }),
 
@@ -248,22 +271,27 @@ const sendAdminPreview = createStep({
     if (!telegramBotToken || !adminChatId) {
       logger?.warn("⚠️ [Step 2] Telegram credentials not set, skipping preview");
       return {
-        previewSent: false,
+        success: false,
         message: "Telegram credentials not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_ADMIN_CHAT_ID.",
-        ...inputData,
+        demoId: 0,
       };
     }
 
     try {
       // Create demo session in database  
-      logger?.info("💾 [Step 2] Creating demo session in database...");
+      logger?.info("💾 [Step 2] Creating demo session in database...", {
+        contentType: inputData.contentType,
+        level: inputData.level,
+      });
       const demo = await demoRepository.createDemoSession(
         {
           podcastTitle: inputData.podcastTitle,
           podcastContent: inputData.podcastContent,
           questions: inputData.questions,
           imageUrl: inputData.imageUrl,
-          audioUrl: "", // Will not use URL for demo anymore
+          audioUrl: inputData.audioUrl || "",
+          contentType: inputData.contentType,
+          level: inputData.level,
         },
         logger
       );
@@ -631,8 +659,11 @@ const sendToTelegramChannel = createStep({
 export const contentMakerWorkflow = createWorkflow({
   id: "content-maker-workflow",
 
-  // Empty input schema for time-based trigger
-  inputSchema: z.object({}) as any,
+  // Optional inputs for manual triggers, defaults for cron triggers
+  inputSchema: z.object({
+    contentType: z.enum(["podcast", "listening", "reading"]).optional().default("podcast"),
+    level: z.enum(["A1", "A2", "B1", "B2"]).optional().default("B1"),
+  }) as any,
 
   outputSchema: z.object({
     success: z.boolean(),
