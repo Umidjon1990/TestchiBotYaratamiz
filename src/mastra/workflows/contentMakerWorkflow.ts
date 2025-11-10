@@ -358,7 +358,7 @@ ${demoUrl}
           logger?.info("📥 [Step 2] Downloading audio from App Storage", { filename: inputData.audioFilename });
           const audioBuffer = await appStorageClient.downloadAsBuffer(inputData.audioFilename, logger);
           
-          // Use form-data package
+          // Use form-data package with submit method (compatible way)
           const FormDataPkg = (await import('form-data')).default;
           const formData = new FormDataPkg();
           
@@ -367,26 +367,33 @@ ${demoUrl}
           formData.append('audio', audioBuffer, {
             filename: 'podcast.mp3',
             contentType: 'audio/mpeg',
-            knownLength: audioBuffer.length,
           });
           formData.append('caption', '🎧 *معاينة الصوت*\n\n' + inputData.podcastTitle);
           formData.append('parse_mode', 'Markdown');
           
-          // Send with proper content-length header
-          const headers = formData.getHeaders();
-          
-          const audioResponse = await fetch(
-            `https://api.telegram.org/bot${telegramBotToken}/sendAudio`,
-            {
-              method: "POST",
-              headers: headers,
-              body: formData,
-            }
-          );
+          // Use formData.submit() instead of fetch() for compatibility
+          const audioResponse = await new Promise((resolve, reject) => {
+            formData.submit({
+              protocol: 'https:',
+              host: 'api.telegram.org',
+              path: `/bot${telegramBotToken}/sendAudio`,
+              method: 'POST',
+            }, (err, res) => {
+              if (err) return reject(err);
+              resolve(res);
+            });
+          });
 
-          const responseText = await audioResponse.text();
+          // Read response body
+          const chunks: Buffer[] = [];
+          for await (const chunk of audioResponse as any) {
+            chunks.push(chunk);
+          }
+          const responseText = Buffer.concat(chunks).toString();
           
-          if (!audioResponse.ok) {
+          if ((audioResponse as any).statusCode === 200) {
+            logger?.info("✅ Audio preview sent to admin successfully");
+          } else {
             let errorDetails;
             try {
               errorDetails = JSON.parse(responseText);
@@ -394,14 +401,8 @@ ${demoUrl}
               errorDetails = responseText;
             }
             logger?.error("❌ Failed to send audio preview to Telegram", { 
-              status: audioResponse.status,
-              statusText: audioResponse.statusText,
-              errorResponse: errorDetails,
-              bufferSize: audioBuffer.length
-            });
-          } else {
-            logger?.info("✅ Audio preview sent to admin successfully", {
-              response: responseText
+              status: (audioResponse as any).statusCode,
+              errorResponse: errorDetails
             });
           }
         } catch (audioError: any) {
@@ -517,7 +518,7 @@ const sendToTelegramChannel = createStep({
           logger?.info("📥 [Step 3] Downloading audio from App Storage", { filename: inputData.audioFilename });
           const audioBuffer = await appStorageClient.downloadAsBuffer(inputData.audioFilename, logger);
           
-          // Use form-data package
+          // Use form-data package with submit method (compatible way)
           const FormDataPkg = (await import('form-data')).default;
           const formData = new FormDataPkg();
           
@@ -526,26 +527,33 @@ const sendToTelegramChannel = createStep({
           formData.append('audio', audioBuffer, {
             filename: 'podcast.mp3',
             contentType: 'audio/mpeg',
-            knownLength: audioBuffer.length,
           });
           formData.append('caption', '🎧 *استمع للبودكاست:*\n\n' + inputData.podcastTitle);
           formData.append('parse_mode', 'Markdown');
           
-          // Send with proper content-length header
-          const headers = formData.getHeaders();
-          
-          const audioResponse = await fetch(
-            `https://api.telegram.org/bot${telegramBotToken}/sendAudio`,
-            {
-              method: "POST",
-              headers: headers,
-              body: formData,
-            }
-          );
+          // Use formData.submit() instead of fetch() for compatibility
+          const audioResponse = await new Promise((resolve, reject) => {
+            formData.submit({
+              protocol: 'https:',
+              host: 'api.telegram.org',
+              path: `/bot${telegramBotToken}/sendAudio`,
+              method: 'POST',
+            }, (err, res) => {
+              if (err) return reject(err);
+              resolve(res);
+            });
+          });
 
-          const responseText = await audioResponse.text();
+          // Read response body
+          const chunks: Buffer[] = [];
+          for await (const chunk of audioResponse as any) {
+            chunks.push(chunk);
+          }
+          const responseText = Buffer.concat(chunks).toString();
           
-          if (!audioResponse.ok) {
+          if ((audioResponse as any).statusCode === 200) {
+            logger?.info("✅ Audio file sent successfully to channel");
+          } else {
             let errorDetails;
             try {
               errorDetails = JSON.parse(responseText);
@@ -553,14 +561,8 @@ const sendToTelegramChannel = createStep({
               errorDetails = responseText;
             }
             logger?.error("❌ Failed to send audio to channel", { 
-              status: audioResponse.status,
-              statusText: audioResponse.statusText,
-              errorResponse: errorDetails,
-              bufferSize: audioBuffer.length
-            });
-          } else {
-            logger?.info("✅ Audio file sent successfully to channel", {
-              response: responseText
+              status: (audioResponse as any).statusCode,
+              errorResponse: errorDetails
             });
           }
         } catch (audioError: any) {
