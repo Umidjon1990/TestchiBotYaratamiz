@@ -345,11 +345,64 @@ ${demoUrl}
         throw new Error(`Telegram API error: ${response.status}`);
       }
 
-      logger?.info("✅ [Step 2] Preview sent to admin successfully with demo URL");
+      logger?.info("✅ [Step 2] Text preview sent to admin");
+
+      // Send audio file to admin for preview
+      if (inputData.audioUrl && inputData.audioUrl !== "") {
+        logger?.info("🎧 [Step 2] Sending audio preview to admin...");
+        
+        try {
+          // Fetch audio from App Storage URL
+          logger?.info("📥 [Step 2] Fetching audio from URL", { audioUrl: inputData.audioUrl });
+          const audioFetchResponse = await fetch(inputData.audioUrl);
+          
+          if (!audioFetchResponse.ok) {
+            throw new Error(`Failed to fetch audio: ${audioFetchResponse.status}`);
+          }
+          
+          // Convert response to buffer
+          const audioArrayBuffer = await audioFetchResponse.arrayBuffer();
+          const audioBuffer = Buffer.from(audioArrayBuffer);
+          logger?.info("📦 [Step 2] Audio fetched and buffered", { size: audioBuffer.length });
+          
+          // Create FormData for multipart upload
+          const FormData = (await import('node:buffer')).Blob ? globalThis.FormData : (await import('formdata-node')).FormData;
+          const formData = new FormData();
+          
+          // Create Blob from buffer
+          const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
+          
+          // Append fields to FormData
+          formData.append('chat_id', adminChatId);
+          formData.append('audio', audioBlob, 'podcast-preview.mp3');
+          formData.append('title', inputData.podcastTitle);
+          formData.append('caption', '🎧 معاينة الصوت');
+          formData.append('parse_mode', 'Markdown');
+          
+          const audioResponse = await fetch(
+            `https://api.telegram.org/bot${telegramBotToken}/sendAudio`,
+            {
+              method: "POST",
+              body: formData as any,
+            }
+          );
+
+          if (!audioResponse.ok) {
+            const errorText = await audioResponse.text();
+            logger?.warn("⚠️ Failed to send audio preview", { error: errorText });
+          } else {
+            logger?.info("✅ Audio preview sent to admin successfully");
+          }
+        } catch (audioError) {
+          logger?.warn("⚠️ Audio preview sending failed", { error: audioError });
+        }
+      }
+
+      logger?.info("✅ [Step 2] Full preview sent to admin (text + audio + demo URL)");
 
       return {
         previewSent: true,
-        message: "Preview sent to admin with public demo URL. Manual approval required to continue.",
+        message: "Full preview sent to admin with audio and demo URL. Manual approval required to continue.",
         ...inputData,
       };
     } catch (error) {
