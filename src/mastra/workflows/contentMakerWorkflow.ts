@@ -312,6 +312,7 @@ const sendAdminPreview = createStep({
     audioFilename: z.string(),
     contentType: z.string(),
     level: z.string(),
+    topic: z.string().optional(),
     success: z.boolean(),
   }),
 
