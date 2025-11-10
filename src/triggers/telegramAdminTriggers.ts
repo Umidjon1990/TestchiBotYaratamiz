@@ -216,9 +216,53 @@ export function registerTelegramAdminTriggers() {
             );
 
           } else if (callbackData === "list_listening" || callbackData === "list_reading") {
-            // Show test list for specific category
+            // Show level selection for specific category
             const contentType = callbackData.replace("list_", "");
-            logger?.info("📋 [Telegram Admin] List tests", { contentType });
+            logger?.info("📋 [Telegram Admin] Show level selection", { contentType });
+
+            await fetch(
+              `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  callback_query_id: callbackQuery.id,
+                  text: "📊 Darajani tanlang",
+                }),
+              }
+            );
+
+            await fetch(
+              `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  text: `${contentType === "listening" ? "🎧 Tinglash" : "📖 O'qish"} testlari\n\nDarajani tanlang:`,
+                  reply_markup: {
+                    inline_keyboard: [
+                      [
+                        { text: "A1", callback_data: `level_${contentType}_A1` },
+                        { text: "A2", callback_data: `level_${contentType}_A2` },
+                      ],
+                      [
+                        { text: "B1", callback_data: `level_${contentType}_B1` },
+                        { text: "B2", callback_data: `level_${contentType}_B2` },
+                      ],
+                      [
+                        { text: "◀️ Orqaga", callback_data: "view_tests" },
+                      ],
+                    ],
+                  },
+                }),
+              }
+            );
+
+          } else if (callbackData.startsWith("level_")) {
+            // Show test list for specific category and level
+            const [_, contentType, level] = callbackData.split("_"); // e.g., "level_listening_A2"
+            logger?.info("📋 [Telegram Admin] List tests by level", { contentType, level });
 
             await fetch(
               `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`,
@@ -232,9 +276,9 @@ export function registerTelegramAdminTriggers() {
               }
             );
 
-            // Fetch tests from database
+            // Fetch tests from database by content type and level
             const { demoRepository } = await import("../mastra/storage/demoRepository");
-            const tests = await demoRepository.listDemosByContentType(contentType, 20, logger);
+            const tests = await demoRepository.listDemosByContentTypeAndLevel(contentType, level, 20, logger);
 
             if (tests.length === 0) {
               await fetch(
@@ -244,11 +288,11 @@ export function registerTelegramAdminTriggers() {
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
                     chat_id: chatId,
-                    text: `📋 *${contentType === "listening" ? "🎧 Tinglash" : "📖 O'qish"} testlari*\n\nHozircha testlar yo'q.`,
+                    text: `📋 *${contentType === "listening" ? "🎧 Tinglash" : "📖 O'qish"} testlari - ${level}*\n\nHozircha testlar yo'q.`,
                     parse_mode: "Markdown",
                     reply_markup: {
                       inline_keyboard: [
-                        [{ text: "◀️ Orqaga", callback_data: "view_tests" }],
+                        [{ text: "◀️ Orqaga", callback_data: `list_${contentType}` }],
                       ],
                     },
                   }),
@@ -258,12 +302,12 @@ export function registerTelegramAdminTriggers() {
               // Create buttons for each test (max 10 per message)
               const testButtons = tests.slice(0, 10).map((test, index) => [
                 { 
-                  text: `${index + 1}. ${test.podcastTitle.substring(0, 40)}... [${test.level}]`, 
+                  text: `${index + 1}. ${test.podcastTitle.substring(0, 40)}...`, 
                   callback_data: `view_test_${test.id}` 
                 }
               ]);
 
-              testButtons.push([{ text: "◀️ Orqaga", callback_data: "view_tests" }]);
+              testButtons.push([{ text: "◀️ Orqaga", callback_data: `list_${contentType}` }]);
 
               await fetch(
                 `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
@@ -272,7 +316,7 @@ export function registerTelegramAdminTriggers() {
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
                     chat_id: chatId,
-                    text: `📋 *${contentType === "listening" ? "🎧 Tinglash" : "📖 O'qish"} testlari*\n\nJami: ${tests.length} ta test\n\nTestni tanlang:`,
+                    text: `📋 *${contentType === "listening" ? "🎧 Tinglash" : "📖 O'qish"} testlari - ${level}*\n\nJami: ${tests.length} ta test\n\nTestni tanlang:`,
                     parse_mode: "Markdown",
                     reply_markup: {
                       inline_keyboard: testButtons,
@@ -283,9 +327,9 @@ export function registerTelegramAdminTriggers() {
             }
 
           } else if (callbackData.startsWith("view_test_")) {
-            // Show test details
+            // Show FULL test content (audio/text + quizzes, just like channel posts)
             const testId = parseInt(callbackData.replace("view_test_", ""));
-            logger?.info("📄 [Telegram Admin] View test details", { testId });
+            logger?.info("📄 [Telegram Admin] View FULL test content", { testId });
 
             await fetch(
               `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`,
@@ -316,20 +360,144 @@ export function registerTelegramAdminTriggers() {
                 }
               );
             } else {
-              // Format test details (escape Markdown special characters)
-              const escapeMarkdown = (text: string) => text.replace(/([_*\[\]()~`>#+\-=|{}.!])/g, '\\$1');
+              // Send FULL content based on type (like channel posts)
+              if (test.contentType === "listening") {
+                // LISTENING: Send audio file + quizzes
+                logger?.info("🎧 [Admin] Sending FULL listening content (audio + quizzes)");
+                
+                let audioSent = false;
+                
+                // Try downloading from App Storage first
+                if (test.audioStoragePath) {
+                  try {
+                    const { appStorageClient } = await import("../mastra/storage/appStorageClient");
+                    logger?.info("📥 [Admin] Downloading audio from App Storage", { filename: test.audioStoragePath });
+                    const audioBuffer = await appStorageClient.downloadAsBuffer(test.audioStoragePath, logger);
+                    
+                    const FormData = (await import("form-data")).default;
+                    const formData = new FormData();
+                    formData.append('chat_id', chatId);
+                    formData.append('audio', audioBuffer, {
+                      filename: 'test-audio.mp3',
+                      contentType: 'audio/mpeg',
+                    });
+                    formData.append('caption', '🎧 *' + test.podcastTitle + '*\n\n' + test.level);
+                    formData.append('parse_mode', 'Markdown');
+                    
+                    await new Promise((resolve, reject) => {
+                      formData.submit({
+                        protocol: 'https:',
+                        host: 'api.telegram.org',
+                        path: `/bot${TELEGRAM_BOT_TOKEN}/sendAudio`,
+                        method: 'POST',
+                      }, (err, res) => {
+                        if (err) return reject(err);
+                        resolve(res);
+                      });
+                    });
+                    
+                    logger?.info("✅ [Admin] Audio sent successfully from App Storage");
+                    audioSent = true;
+                  } catch (audioError: any) {
+                    logger?.error("❌ [Admin] Failed to send audio from App Storage", { error: audioError.message });
+                  }
+                }
+                
+                // Fallback: Try using audioUrl (for legacy tests)
+                if (!audioSent && test.audioUrl && test.audioUrl.startsWith("http")) {
+                  try {
+                    logger?.info("🔄 [Admin] Trying audioUrl fallback (legacy test)", { url: test.audioUrl.substring(0, 50) });
+                    
+                    await fetch(
+                      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendAudio`,
+                      {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          chat_id: chatId,
+                          audio: test.audioUrl,
+                          caption: `🎧 *${test.podcastTitle}*\n\n${test.level}`,
+                          parse_mode: "Markdown",
+                        }),
+                      }
+                    );
+                    
+                    logger?.info("✅ [Admin] Audio sent successfully from URL (legacy)");
+                    audioSent = true;
+                  } catch (urlError: any) {
+                    logger?.error("❌ [Admin] Failed to send audio from URL", { error: urlError.message });
+                  }
+                }
+                
+                // Notify admin if audio couldn't be sent
+                if (!audioSent) {
+                  await fetch(
+                    `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+                    {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        chat_id: chatId,
+                        text: `⚠️ Audio yuborishda xatolik yuz berdi.\n\nTest: ${test.podcastTitle}`,
+                      }),
+                    }
+                  );
+                }
+                
+              } else if (test.contentType === "reading") {
+                // READING: Send text only (no audio, no image)
+                logger?.info("📖 [Admin] Sending FULL reading content (text + quizzes)");
+                
+                const readingText = `📖 *${test.podcastTitle}*\n\n${test.podcastContent}`;
+                
+                await fetch(
+                  `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      chat_id: chatId,
+                      text: readingText,
+                      parse_mode: "Markdown",
+                    }),
+                  }
+                );
+                
+                logger?.info("✅ [Admin] Reading text sent successfully");
+              }
               
-              const contentTypeEmoji = test.contentType === "listening" ? "🎧" : "📖";
-              const statusEmoji = test.status === "posted" ? "✅" : test.status === "approved" ? "👍" : "📝";
+              // Send quizzes (for both listening and reading)
+              const questions = test.questions as any[];
+              logger?.info(`📝 [Admin] Sending ${questions.length} quizzes...`);
               
-              let message = `${contentTypeEmoji} *Test ${test.id}*\n\n`;
-              message += `📌 *Sarlavha:* ${escapeMarkdown(test.podcastTitle)}\n`;
-              message += `📊 *Daraja:* ${test.level}\n`;
-              message += `📅 *Sana:* ${new Date(test.createdAt).toLocaleDateString()}\n`;
-              message += `${statusEmoji} *Status:* ${test.status}\n\n`;
-              message += `📝 *Matn:*\n${escapeMarkdown(test.podcastContent.substring(0, 200))}${test.podcastContent.length > 200 ? "..." : ""}\n\n`;
-              message += `❓ *Savollar:* ${(test.questions as any[]).length} ta`;
-
+              for (let i = 0; i < questions.length; i++) {
+                const question = questions[i];
+                
+                try {
+                  await fetch(
+                    `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPoll`,
+                    {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        chat_id: chatId,
+                        question: `${i + 1}. ${question.question}`,
+                        options: question.options.map((opt: string) => opt.substring(0, 100)),
+                        type: "quiz",
+                        correct_option_id: question.correctAnswer,
+                        explanation: question.explanation,
+                        is_anonymous: false,
+                      }),
+                    }
+                  );
+                  
+                  logger?.info(`✅ [Admin] Quiz ${i + 1} sent`);
+                } catch (quizError: any) {
+                  logger?.error(`❌ [Admin] Failed to send quiz ${i + 1}`, { error: quizError.message });
+                }
+              }
+              
+              // Send navigation buttons after all content
               await fetch(
                 `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
                 {
@@ -337,15 +505,11 @@ export function registerTelegramAdminTriggers() {
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
                     chat_id: chatId,
-                    text: message,
-                    parse_mode: "Markdown",
+                    text: `✅ Test to'liq ko'rsatildi!\n\nID: ${test.id} | Daraja: ${test.level} | Status: ${test.status}`,
                     reply_markup: {
                       inline_keyboard: [
                         [
-                          { text: "✏️ Tahrirlash", callback_data: `edit_test_${test.id}` },
-                        ],
-                        [
-                          { text: "◀️ Orqaga", callback_data: `list_${test.contentType}` },
+                          { text: "◀️ Orqaga", callback_data: `level_${test.contentType}_${test.level}` },
                         ],
                       ],
                     },

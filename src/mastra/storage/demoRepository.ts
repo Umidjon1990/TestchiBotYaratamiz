@@ -1,5 +1,5 @@
 import { drizzle } from "drizzle-orm/node-postgres";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { pgPool } from "./index";
 import * as schema from "../../../shared/schema";
 import { randomBytes } from "crypto";
@@ -267,6 +267,38 @@ export const demoRepository = {
       return demos;
     } catch (error) {
       logger?.error("❌ [DemoRepository] Error listing demos by content type", { error });
+      throw error;
+    }
+  },
+
+  /**
+   * Get demos by content type and level (listening/reading + A1/A2/B1/B2)
+   */
+  async listDemosByContentTypeAndLevel(contentType: string, level: string, limit = 20, logger?: any) {
+    logger?.info("📋 [DemoRepository] Listing demos by content type and level", { contentType, level, limit });
+
+    try {
+      const demos = await db
+        .select()
+        .from(schema.demoSessions)
+        .where(
+          and(
+            eq(schema.demoSessions.contentType, contentType),
+            eq(schema.demoSessions.level, level)
+          )
+        )
+        .orderBy(schema.demoSessions.createdAt)
+        .limit(limit);
+
+      logger?.info("✅ [DemoRepository] Demos listed by content type and level", { 
+        contentType,
+        level, 
+        count: demos.length 
+      });
+
+      return demos;
+    } catch (error) {
+      logger?.error("❌ [DemoRepository] Error listing demos by content type and level", { error });
       throw error;
     }
   },
