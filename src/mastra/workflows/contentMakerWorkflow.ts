@@ -384,15 +384,25 @@ ${demoUrl}
             }
           );
 
+          const responseText = await audioResponse.text();
+          
           if (!audioResponse.ok) {
-            const errorText = await audioResponse.text();
+            let errorDetails;
+            try {
+              errorDetails = JSON.parse(responseText);
+            } catch {
+              errorDetails = responseText;
+            }
             logger?.error("❌ Failed to send audio preview to Telegram", { 
               status: audioResponse.status,
               statusText: audioResponse.statusText,
-              errorBody: errorText
+              errorResponse: errorDetails,
+              bufferSize: audioBuffer.length
             });
           } else {
-            logger?.info("✅ Audio preview sent to admin successfully");
+            logger?.info("✅ Audio preview sent to admin successfully", {
+              response: responseText
+            });
           }
         } catch (audioError: any) {
           logger?.error("❌ Audio preview sending failed", { 
@@ -533,15 +543,25 @@ const sendToTelegramChannel = createStep({
             }
           );
 
+          const responseText = await audioResponse.text();
+          
           if (!audioResponse.ok) {
-            const errorText = await audioResponse.text();
+            let errorDetails;
+            try {
+              errorDetails = JSON.parse(responseText);
+            } catch {
+              errorDetails = responseText;
+            }
             logger?.error("❌ Failed to send audio to channel", { 
               status: audioResponse.status,
               statusText: audioResponse.statusText,
-              errorBody: errorText
+              errorResponse: errorDetails,
+              bufferSize: audioBuffer.length
             });
           } else {
-            logger?.info("✅ Audio file sent successfully to channel");
+            logger?.info("✅ Audio file sent successfully to channel", {
+              response: responseText
+            });
           }
         } catch (audioError: any) {
           logger?.error("❌ Audio download/send failed in Step 3", { 
