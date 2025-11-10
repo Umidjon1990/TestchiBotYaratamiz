@@ -7,13 +7,14 @@ import { Readable } from "stream";
 class AppStorageClient {
   private client: Client;
   private initialized: boolean = false;
-  private bucketName: string = "audio-files";
+  // Actual bucket ID from App Storage Settings
+  private bucketId: string = "replit-objstore-f00a83e7-474d-4079-93c4-d7b576bbad69";
+  private bucketName: string = "audio-files"; // Display name for URLs
 
   constructor() {
-    // Initialize client with our specific bucket ID
-    // Note: bucketId can be found in App Storage panel or use bucket name
+    // Initialize client with actual bucket ID from App Storage
     this.client = new Client({
-      bucketId: this.bucketName,
+      bucketId: this.bucketId,
     });
   }
 
@@ -59,17 +60,17 @@ class AppStorageClient {
       logger?.info("✅ Upload complete");
 
       // Generate public URL for App Storage
-      // Pattern: https://<domain>/_app_storage/<bucket-name>/<filename>
+      // Pattern: https://<domain>/_app_storage/<bucket-id>/<filename>
       const domain = process.env.REPLIT_DOMAINS?.split(',')[0];
       
       if (!domain) {
         // Local development fallback
-        const url = `http://localhost:5000/_app_storage/${this.bucketName}/${filename}`;
+        const url = `http://localhost:5000/_app_storage/${this.bucketId}/${filename}`;
         logger?.info("📍 Local public URL generated:", url);
         return { url, filename };
       }
       
-      const url = `https://${domain}/_app_storage/${this.bucketName}/${filename}`;
+      const url = `https://${domain}/_app_storage/${this.bucketId}/${filename}`;
       logger?.info("📍 Public URL generated:", url);
       return { url, filename };
     } catch (error) {
