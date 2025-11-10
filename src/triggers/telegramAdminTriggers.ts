@@ -243,12 +243,12 @@ export function registerTelegramAdminTriggers() {
                   reply_markup: {
                     inline_keyboard: [
                       [
-                        { text: "A1", callback_data: `level_${contentType}_A1` },
-                        { text: "A2", callback_data: `level_${contentType}_A2` },
+                        { text: "A1", callback_data: `viewlevel_${contentType}_A1` },
+                        { text: "A2", callback_data: `viewlevel_${contentType}_A2` },
                       ],
                       [
-                        { text: "B1", callback_data: `level_${contentType}_B1` },
-                        { text: "B2", callback_data: `level_${contentType}_B2` },
+                        { text: "B1", callback_data: `viewlevel_${contentType}_B1` },
+                        { text: "B2", callback_data: `viewlevel_${contentType}_B2` },
                       ],
                       [
                         { text: "◀️ Orqaga", callback_data: "view_tests" },
@@ -259,9 +259,9 @@ export function registerTelegramAdminTriggers() {
               }
             );
 
-          } else if (callbackData.startsWith("level_")) {
+          } else if (callbackData.startsWith("viewlevel_")) {
             // Show test list for specific category and level
-            const [_, contentType, level] = callbackData.split("_"); // e.g., "level_listening_A2"
+            const [_, contentType, level] = callbackData.split("_"); // e.g., "viewlevel_listening_A2"
             logger?.info("📋 [Telegram Admin] List tests by level", { contentType, level });
 
             await fetch(
@@ -509,7 +509,7 @@ export function registerTelegramAdminTriggers() {
                     reply_markup: {
                       inline_keyboard: [
                         [
-                          { text: "◀️ Orqaga", callback_data: `level_${test.contentType}_${test.level}` },
+                          { text: "◀️ Orqaga", callback_data: `viewlevel_${test.contentType}_${test.level}` },
                         ],
                       ],
                     },
