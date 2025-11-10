@@ -180,12 +180,18 @@ ${questionInstruction}
       // Generate image for podcast topic
       const imageUrl = await generateImageUrl(podcastData.podcastTitle, logger);
 
-      // Generate audio using helper function (direct tool call)
-      const audioData = await generateAudioData(
-        podcastData.podcastContent,
-        podcastData.podcastTitle,
-        logger
-      );
+      // Generate audio ONLY for listening mode (not for reading)
+      let audioData = { audioUrl: "", audioBase64: "", filename: "" };
+      if (contentType === "listening") {
+        logger?.info("🎧 [Step 1] Generating audio for listening mode...");
+        audioData = await generateAudioData(
+          podcastData.podcastContent,
+          podcastData.podcastTitle,
+          logger
+        );
+      } else {
+        logger?.info("📖 [Step 1] Skipping audio generation for reading mode");
+      }
 
       return {
         ...podcastData,
