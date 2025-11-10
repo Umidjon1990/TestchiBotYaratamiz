@@ -1,12 +1,11 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
-import { sharedPostgresStorage } from "./index";
+import { pgPool } from "./index";
 import * as schema from "../../../shared/schema";
 import { randomBytes } from "crypto";
 
-// Create Drizzle client from PostgresStore pool
-// @ts-ignore - PostgresStore has a pool property
-const db = drizzle(sharedPostgresStorage.pool, { schema });
+// Create Drizzle client from pg Pool
+const db = drizzle(pgPool, { schema });
 
 export interface CreateDemoSessionInput {
   podcastTitle: string;
