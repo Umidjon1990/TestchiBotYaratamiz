@@ -177,8 +177,8 @@ ${questionInstruction}
         };
       }
 
-      // Generate image for podcast topic
-      const imageUrl = await generateImageUrl(podcastData.podcastTitle, logger);
+      // NO IMAGE GENERATION - Reading mode is text-only with icon + title
+      logger?.info("🚫 [Step 1] Skipping image generation - not needed for reading mode");
 
       // Generate audio for all modes EXCEPT reading (reading is text-only)
       let audioData = { audioUrl: "", audioBase64: "", filename: "" };
@@ -195,7 +195,7 @@ ${questionInstruction}
 
       return {
         ...podcastData,
-        imageUrl,
+        imageUrl: "", // No image for reading mode
         audioUrl: audioData.audioUrl || "",
         audioFilename: audioData.filename || "",
         contentType,
@@ -208,23 +208,6 @@ ${questionInstruction}
     }
   },
 });
-
-// Helper function for image generation
-async function generateImageUrl(topic: string, logger: any): Promise<string> {
-  try {
-    logger?.info("🎨 Generating image for topic:", topic);
-    
-    // Using Picsum Photos for reliable direct image URLs
-    // This returns a direct JPEG file that Telegram can use
-    const imageUrl = `https://picsum.photos/800/600?random=${Date.now()}`;
-    
-    logger?.info("✅ Image URL generated");
-    return imageUrl;
-  } catch (error) {
-    logger?.error("❌ Image generation error", { error });
-    return "";
-  }
-}
 
 // Helper function for audio generation using generateAudio tool
 async function generateAudioData(
@@ -547,94 +530,35 @@ const sendToTelegramChannel = createStep({
           break;
         
         case "reading":
-          // READING: Text + Quiz only (no audio)
-          logger?.info("📖 [Step 3] Reading mode - sending text + quiz");
+          // READING: Icon + Title + Text + Quiz only (NO IMAGE, NO AUDIO)
+          logger?.info("📖 [Step 3] Reading mode - sending text + quiz (no image)");
           
           try {
+            // Format: Icon + Title + Content
             const readingText = `📖 *${inputData.podcastTitle}*\n\n${inputData.podcastContent}`;
             
-            logger?.info("📖 [Step 3] Image URL check:", { 
-              hasImage: !!(inputData.imageUrl && inputData.imageUrl !== ""),
-              imageUrl: inputData.imageUrl?.substring(0, 50) 
-            });
+            logger?.info("📝 [Step 3] Sending reading text...");
+            const textResponse = await fetch(
+              `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  chat_id: channelId,
+                  text: readingText,
+                  parse_mode: "Markdown",
+                }),
+              }
+            );
             
-            if (inputData.imageUrl && inputData.imageUrl !== "") {
-              // SOLUTION: Send image and text separately to avoid caption length limit (1024 chars)
-              // Step 1: Send image with title only
-              logger?.info("📸 [Step 3] Sending image with title...");
-              const imageResponse = await fetch(
-                `https://api.telegram.org/bot${telegramBotToken}/sendPhoto`,
-                {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    chat_id: channelId,
-                    photo: inputData.imageUrl,
-                    caption: `📖 *${inputData.podcastTitle}*`,
-                    parse_mode: "Markdown",
-                  }),
-                }
-              );
-              
-              if (imageResponse.ok) {
-                logger?.info("✅ Image sent successfully");
-              } else {
-                const errorText = await imageResponse.text();
-                logger?.error("❌ Failed to send image", { 
-                  status: imageResponse.status,
-                  error: errorText 
-                });
-              }
-              
-              // Step 2: Send full text as separate message
-              logger?.info("📝 [Step 3] Sending full reading text...");
-              const textResponse = await fetch(
-                `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
-                {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    chat_id: channelId,
-                    text: inputData.podcastContent,
-                    parse_mode: "Markdown",
-                  }),
-                }
-              );
-              
-              if (textResponse.ok) {
-                logger?.info("✅ Reading text sent successfully");
-              } else {
-                const errorText = await textResponse.text();
-                logger?.error("❌ Failed to send reading text", { 
-                  status: textResponse.status,
-                  error: errorText 
-                });
-              }
+            if (textResponse.ok) {
+              logger?.info("✅ Reading text sent successfully");
             } else {
-              // Send text without image (as regular message)
-              logger?.info("📝 [Step 3] Sending reading text without image...");
-              const textResponse = await fetch(
-                `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
-                {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    chat_id: channelId,
-                    text: readingText,
-                    parse_mode: "Markdown",
-                  }),
-                }
-              );
-              
-              if (textResponse.ok) {
-                logger?.info("✅ Reading text sent successfully (without image)");
-              } else {
-                const errorText = await textResponse.text();
-                logger?.error("❌ Failed to send reading text", { 
-                  status: textResponse.status,
-                  error: errorText 
-                });
-              }
+              const errorText = await textResponse.text();
+              logger?.error("❌ Failed to send reading text", { 
+                status: textResponse.status,
+                error: errorText 
+              });
             }
           } catch (textError: any) {
             logger?.error("❌ [Step 3] Error sending reading text", { 
