@@ -51,7 +51,8 @@ export const generateAudio = createTool({
       }
 
       // ElevenLabs API integration
-      const voiceId = context.voiceId || "21m00Tcm4TlvDq8ikWAM"; // Default voice
+      // استخدام صوت عربي - Adam (صوت ذكوري واضح يدعم العربية)
+      const voiceId = context.voiceId || "pNInz6obpgDQGcFmaJgB"; // Adam - Arabic voice
 
       logger?.info("📡 [generateAudio] Calling ElevenLabs API", { voiceId });
 
@@ -66,7 +67,7 @@ export const generateAudio = createTool({
           },
           body: JSON.stringify({
             text: context.text,
-            model_id: "eleven_multilingual_v2",
+            model_id: "eleven_multilingual_v2", // يدعم اللغة العربية
             voice_settings: {
               stability: 0.5,
               similarity_boost: 0.75,

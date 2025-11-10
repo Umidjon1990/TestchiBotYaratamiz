@@ -27,7 +27,7 @@ export const generatePodcastContent = createTool({
 
   outputSchema: z.object({
     title: z.string().describe("Podcast title"),
-    content: z.string().describe("Podcast text content in Uzbek"),
+    content: z.string().describe("Podcast text content in Arabic"),
     topic: z.string().describe("Topic covered"),
     wordCount: z.number().describe("Number of words in content"),
     timestamp: z.string().describe("Generation timestamp"),
@@ -41,21 +41,21 @@ export const generatePodcastContent = createTool({
     });
 
     try {
-      // AI va ta'lim sohasidagi mavzular ro'yxati
+      // مواضيع في مجال الذكاء الاصطناعي والتعليم
       const topics = [
-        "Sun'iy intellekt va til o'rganish",
-        "ChatGPT va ta'limda yangi imkoniyatlar",
-        "Onlayn ta'lim platformalari rivojlanishi",
-        "AI yordamchi o'qituvchilar",
-        "Zamonaviy texnologiyalar maktablarda",
-        "Til o'rganishda mobil ilovalar",
-        "Virtual reallik va ta'lim",
-        "AI orqali shaxsiylashtirilgan ta'lim",
-        "Kelajakda ta'lim qanday bo'ladi",
-        "Texnologiya va o'qituvchilar roli",
+        "الذكاء الاصطناعي وتعلم اللغات",
+        "ChatGPT وفرص جديدة في التعليم",
+        "تطور منصات التعليم عبر الإنترنت",
+        "المعلمون المساعدون بالذكاء الاصطناعي",
+        "التكنولوجيا الحديثة في المدارس",
+        "تطبيقات الهاتف لتعلم اللغات",
+        "الواقع الافتراضي والتعليم",
+        "التعليم الشخصي عبر الذكاء الاصطناعي",
+        "كيف سيكون التعليم في المستقبل",
+        "التكنولوجيا ودور المعلمين",
       ];
 
-      // Random mavzu tanlash yoki berilgan mavzudan foydalanish
+      // اختيار موضوع عشوائي أو استخدام الموضوع المقدم
       const selectedTopic =
         context.topic || topics[Math.floor(Math.random() * topics.length)];
 
@@ -63,24 +63,24 @@ export const generatePodcastContent = createTool({
         topic: selectedTopic,
       });
 
-      // A2-B1 darajasidagi oddiy va tushunarli matn yaratish
-      // Bu yerda real AI integration bo'lishi kerak, lekin demo uchun template ishlatamiz
+      // إنشاء نص بسيط ومفهوم بمستوى A2-B1
+      // في التطبيق الحقيقي، يجب استخدام AI integration
       const podcastContent = `
-Assalomu alaykum, aziz tinglovchilar!
+السلام عليكم، أعزائي المستمعين!
 
-Bugun biz siz bilan "${selectedTopic}" mavzusida gaplashamiz.
+اليوم سنتحدث معكم عن موضوع "${selectedTopic}".
 
-Zamonaviy dunyo juda tez o'zgarmoqda. Har kuni yangi texnologiyalar paydo bo'lmoqda. Bu texnologiyalar bizning hayotimizni osonlashtirmoqda.
+العالم الحديث يتغير بسرعة كبيرة. كل يوم تظهر تقنيات جديدة. هذه التقنيات تسهل حياتنا.
 
-Sun'iy intellekt hozirgi paytda eng mashhur texnologiya hisoblanadi. U ko'plab sohalarda ishlatilmoqda. Ta'lim sohasida ham AI juda foydali.
+الذكاء الاصطناعي يعتبر الآن أكثر التقنيات شهرة. يستخدم في مجالات كثيرة. في مجال التعليم أيضاً، الذكاء الاصطناعي مفيد جداً.
 
-Masalan, til o'rganish uchun zamonaviy ilovalar bor. Bu ilovalar talabalarning xatolarini topadi va tuzatadi. Ular har bir talabaga individual yondashuv qo'llaydi.
+على سبيل المثال، توجد تطبيقات حديثة لتعلم اللغات. هذه التطبيقات تجد أخطاء الطلاب وتصححها. تستخدم نهجاً فردياً لكل طالب.
 
-O'qituvchilar ham AI dan foydalanmoqda. Bu ularga vaqt tejashda yordam beradi. Ular ko'proq vaqtni talabalar bilan muloqotga sarflaydi.
+المعلمون أيضاً يستخدمون الذكاء الاصطناعي. هذا يساعدهم في توفير الوقت. يقضون وقتاً أكثر في التواصل مع الطلاب.
 
-Lekin texnologiya faqat vosita. Eng muhimi - bilim olishga bo'lgan ishtiyoq va mehnat.
+لكن التكنولوجيا هي مجرد وسيلة. الأهم هو الشغف بالمعرفة والاجتهاد.
 
-Tinglaganingiz uchun rahmat! Keyingi podcastda yana uchrashguncha!
+شكراً لاستماعكم! نلتقي في البودكاست القادم!
 `;
 
       const wordCount = podcastContent

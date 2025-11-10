@@ -25,7 +25,7 @@ export const generateQuestions = createTool({
         correctAnswer: z
           .number()
           .describe("Index of correct answer (0-3)"),
-        explanation: z.string().describe("Brief explanation in Uzbek"),
+        explanation: z.string().describe("Brief explanation in Arabic"),
       })
     ),
     totalQuestions: z.number().describe("Total number of questions generated"),
@@ -39,46 +39,46 @@ export const generateQuestions = createTool({
     });
 
     try {
-      // Bu yerda real AI integration bo'lishi kerak (OpenAI)
-      // Demo uchun hardcoded questions ishlatamiz
-      // Real implementation'da GPT dan foydalanib dinamik savollar yaratiladi
+      // في التطبيق الحقيقي يجب استخدام AI integration (OpenAI)
+      // للتوضيح نستخدم أسئلة ثابتة
+      // في التطبيق الفعلي يتم إنشاء أسئلة ديناميكية باستخدام GPT
 
       const questions = [
         {
-          question: "Podcast qaysi mavzuga bag'ishlangan?",
+          question: "ما هو موضوع البودكاست؟",
           options: [
-            "Sport va sog'liq turmush",
-            "Sun'iy intellekt va ta'lim",
-            "Tarix va madaniyat",
-            "Iqtisodiyot va biznes",
+            "الرياضة والصحة",
+            "الذكاء الاصطناعي والتعليم",
+            "التاريخ والثقافة",
+            "الاقتصاد والأعمال",
           ],
           correctAnswer: 1,
           explanation:
-            "Podcast sun'iy intellekt va ta'lim sohasidagi yangiliklardan bahslaydi.",
+            "البودكاست يناقش الأخبار في مجال الذكاء الاصطناعي والتعليم.",
         },
         {
-          question: "AI texnologiyasining ta'limdagi asosiy afzalligi nima?",
+          question: "ما هي الميزة الأساسية للذكاء الاصطناعي في التعليم؟",
           options: [
-            "Faqat testlar yaratadi",
-            "O'qituvchilarni almashtiradi",
-            "Har bir talabaga individual yondashuv",
-            "Faqat til o'rganishda ishlatiladi",
+            "فقط ينشئ الاختبارات",
+            "يستبدل المعلمين",
+            "نهج فردي لكل طالب",
+            "يستخدم فقط لتعلم اللغات",
           ],
           correctAnswer: 2,
           explanation:
-            "AI har bir talabaning ehtiyojiga qarab shaxsiylashtirilgan ta'lim berishi mumkin.",
+            "الذكاء الاصطناعي يمكنه تقديم تعليم شخصي حسب احتياجات كل طالب.",
         },
         {
-          question: "Podcastda eng muhim narsa nima deb aytilgan?",
+          question: "ما هو الأهم حسب البودكاست؟",
           options: [
-            "Eng yangi texnologiyaga ega bo'lish",
-            "Ko'p pul sarflash",
-            "Bilim olishga bo'lgan ishtiyoq va mehnat",
-            "Faqat AI dan foydalanish",
+            "امتلاك أحدث التقنيات",
+            "إنفاق الكثير من المال",
+            "الشغف بالمعرفة والاجتهاد",
+            "استخدام الذكاء الاصطناعي فقط",
           ],
           correctAnswer: 2,
           explanation:
-            "Texnologiya faqat vosita, asosiy narsa - o'rganishga bo'lgan ishtiyoq va mehnat.",
+            "التكنولوجيا مجرد وسيلة، الأهم هو الشغف بالتعلم والاجتهاد.",
         },
       ];
 
