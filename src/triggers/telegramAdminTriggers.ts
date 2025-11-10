@@ -557,25 +557,12 @@ export function registerTelegramAdminTriggers() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   chat_id: chatId,
-                  text: `🎓 *مَرْحَبًا بِكَ فِي Content Maker Bot!*\n\nاخْتَرْ نَوْعَ المُحْتَوَى وَالمُسْتَوَى:`,
+                  text: `🎓 *مَرْحَبًا بِكَ فِي Content Maker Bot!*\n\nTanlang:`,
                   parse_mode: "Markdown",
                   reply_markup: {
                     inline_keyboard: [
                       [
-                        { text: "🎧 Tinglash - A1", callback_data: "create_listening_A1" },
-                        { text: "🎧 Tinglash - A2", callback_data: "create_listening_A2" },
-                      ],
-                      [
-                        { text: "🎧 Tinglash - B1", callback_data: "create_listening_B1" },
-                        { text: "🎧 Tinglash - B2", callback_data: "create_listening_B2" },
-                      ],
-                      [
-                        { text: "📖 O'qish - A1", callback_data: "create_reading_A1" },
-                        { text: "📖 O'qish - A2", callback_data: "create_reading_A2" },
-                      ],
-                      [
-                        { text: "📖 O'qish - B1", callback_data: "create_reading_B1" },
-                        { text: "📖 O'qish - B2", callback_data: "create_reading_B2" },
+                        { text: "➕ Yangi test yaratish", callback_data: "select_topic" },
                       ],
                       [
                         { text: "📋 Testlar ro'yxati", callback_data: "view_tests" },
@@ -586,12 +573,193 @@ export function registerTelegramAdminTriggers() {
               }
             );
 
-          } else if (callbackData.startsWith("create_")) {
-            // Menu button - create new content
-            const [_, contentType, level] = callbackData.split("_"); // e.g., "create_listening_A2"
-            logger?.info("🎯 [Telegram Admin] Create content", { contentType, level });
+          } else if (callbackData === "select_topic") {
+            // Step 1: Topic selection
+            logger?.info("📚 [Telegram Admin] Topic selection menu");
 
-            // CRITICAL: Answer callback query IMMEDIATELY to prevent Telegram from retrying
+            await fetch(
+              `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  callback_query_id: callbackQuery.id,
+                  text: "📚 Mavzu tanlang",
+                }),
+              }
+            );
+
+            await fetch(
+              `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  text: `📚 *Mavzu tanlang:*\n\n(Diniy mavzular qo'shilmaydi)`,
+                  parse_mode: "Markdown",
+                  reply_markup: {
+                    inline_keyboard: [
+                      [
+                        { text: "🔬 Fan (Science)", callback_data: "topic_Science" },
+                        { text: "💻 Texnologiya (Tech)", callback_data: "topic_Technology" },
+                      ],
+                      [
+                        { text: "🏥 Salomatlik (Health)", callback_data: "topic_Health" },
+                        { text: "🎭 Madaniyat (Culture)", callback_data: "topic_Culture" },
+                      ],
+                      [
+                        { text: "📜 Tarix (History)", callback_data: "topic_History" },
+                        { text: "🌍 Ekologiya (Environment)", callback_data: "topic_Environment" },
+                      ],
+                      [
+                        { text: "📚 Ta'lim (Education)", callback_data: "topic_Education" },
+                        { text: "✍️ O'zim yozaman", callback_data: "topic_Custom" },
+                      ],
+                      [
+                        { text: "◀️ Orqaga", callback_data: "back_to_menu" },
+                      ],
+                    ],
+                  },
+                }),
+              }
+            );
+
+          } else if (callbackData.startsWith("topic_")) {
+            // Step 2: After topic selected, show content type selection
+            const topic = callbackData.replace("topic_", "");
+            logger?.info("📝 [Telegram Admin] Topic selected", { topic });
+
+            if (topic === "Custom") {
+              // Handle custom topic input
+              await fetch(
+                `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    callback_query_id: callbackQuery.id,
+                    text: "✍️ Custom topic (keyinroq)",
+                    show_alert: true,
+                  }),
+                }
+              );
+
+              await fetch(
+                `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    chat_id: chatId,
+                    text: `✍️ *O'z mavzuingizni yozing*\n\n(Keyinroq qo'shiladi - hozircha tayyor mavzulardan birini tanlang)`,
+                    parse_mode: "Markdown",
+                    reply_markup: {
+                      inline_keyboard: [
+                        [
+                          { text: "◀️ Orqaga", callback_data: "select_topic" },
+                        ],
+                      ],
+                    },
+                  }),
+                }
+              );
+            } else {
+              // Show content type selection
+              await fetch(
+                `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    callback_query_id: callbackQuery.id,
+                    text: `✅ ${topic} tanlandi`,
+                  }),
+                }
+              );
+
+              await fetch(
+                `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    chat_id: chatId,
+                    text: `📝 Mavzu: *${topic}*\n\nTurini tanlang:`,
+                    parse_mode: "Markdown",
+                    reply_markup: {
+                      inline_keyboard: [
+                        [
+                          { text: "🎧 Tinglash (Listening)", callback_data: `type_listening_${topic}` },
+                        ],
+                        [
+                          { text: "📖 O'qish (Reading)", callback_data: `type_reading_${topic}` },
+                        ],
+                        [
+                          { text: "◀️ Orqaga", callback_data: "select_topic" },
+                        ],
+                      ],
+                    },
+                  }),
+                }
+              );
+            }
+
+          } else if (callbackData.startsWith("type_")) {
+            // Step 3: After content type selected, show level selection
+            const [_, contentType, topic] = callbackData.split("_"); // e.g., "type_listening_Science"
+            logger?.info("📊 [Telegram Admin] Content type selected", { contentType, topic });
+
+            await fetch(
+              `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  callback_query_id: callbackQuery.id,
+                  text: `✅ ${contentType === "listening" ? "Tinglash" : "O'qish"} tanlandi`,
+                }),
+              }
+            );
+
+            await fetch(
+              `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  text: `📊 Mavzu: *${topic}*\nTur: *${contentType === "listening" ? "🎧 Tinglash" : "📖 O'qish"}*\n\nDarajani tanlang:`,
+                  parse_mode: "Markdown",
+                  reply_markup: {
+                    inline_keyboard: [
+                      [
+                        { text: "A1 (Boshlang'ich)", callback_data: `level_A1_${contentType}_${topic}` },
+                        { text: "A2 (Oddiy)", callback_data: `level_A2_${contentType}_${topic}` },
+                      ],
+                      [
+                        { text: "B1 (O'rta)", callback_data: `level_B1_${contentType}_${topic}` },
+                        { text: "B2 (Yuqori)", callback_data: `level_B2_${contentType}_${topic}` },
+                      ],
+                      [
+                        { text: "◀️ Orqaga", callback_data: `topic_${topic}` },
+                      ],
+                    ],
+                  },
+                }),
+              }
+            );
+
+          } else if (callbackData.startsWith("level_")) {
+            // Step 4: Trigger workflow with all parameters
+            const parts = callbackData.split("_"); // e.g., "level_A1_listening_Science"
+            const level = parts[1]; // A1, A2, B1, B2
+            const contentType = parts[2]; // listening, reading
+            const topic = parts.slice(3).join("_"); // Science, Technology, etc. (handle multi-word topics)
+            
+            logger?.info("🎯 [Telegram Admin] Create content with topic", { contentType, level, topic });
+
+            // CRITICAL: Answer callback query IMMEDIATELY
             await fetch(
               `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`,
               {
@@ -612,33 +780,34 @@ export function registerTelegramAdminTriggers() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   chat_id: chatId,
-                  text: `⏳ جَارٍ إِنْشَاءُ ${contentType} - ${level}...\n\nيُرْجَى الِانْتِظَارُ، سَتَتَلَقَّى مُعَايَنَةً قَرِيبًا...`,
+                  text: `⏳ *Yaratilmoqda...*\n\n📚 Mavzu: ${topic}\n${contentType === "listening" ? "🎧" : "📖"} Tur: ${contentType}\n📊 Daraja: ${level}\n\nYaqin orada preview yuboriladi...`,
                   parse_mode: "Markdown",
                 }),
               }
             );
 
-            // Trigger workflow with manual parameters (async, no await)
-            logger?.info("🚀 [Telegram Admin] Triggering content creation workflow...", {
+            // Trigger workflow with topic parameter
+            logger?.info("🚀 [Telegram Admin] Triggering content creation workflow with topic...", {
               contentType,
               level,
+              topic,
             });
             
-            // Run workflow in background without blocking response
+            // Run workflow in background
             (async () => {
               try {
                 const { contentMakerWorkflow } = await import("../mastra/workflows/contentMakerWorkflow");
                 
-                // Trigger workflow directly with manual parameters
                 const run = await contentMakerWorkflow.createRunAsync();
                 const result = await run.start({
                   inputData: {
                     contentType,
                     level,
+                    topic,
                   },
                 });
                 
-                logger?.info("✅ [Telegram Admin] Workflow triggered successfully", {
+                logger?.info("✅ [Telegram Admin] Workflow triggered successfully with topic", {
                   status: result?.status,
                 });
               } catch (triggerError: any) {
@@ -647,7 +816,6 @@ export function registerTelegramAdminTriggers() {
                   stack: triggerError?.stack,
                 });
                 
-                // Send error to admin
                 await fetch(
                   `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
                   {
@@ -687,25 +855,12 @@ export function registerTelegramAdminTriggers() {
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
                     chat_id: chatId,
-                    text: `🎓 *مَرْحَبًا بِكَ فِي Content Maker Bot!*\n\nاخْتَرْ نَوْعَ المُحْتَوَى وَالمُسْتَوَى:`,
+                    text: `🎓 *مَرْحَبًا بِكَ فِي Content Maker Bot!*\n\nTanlang:`,
                     parse_mode: "Markdown",
                     reply_markup: {
                       inline_keyboard: [
                         [
-                          { text: "🎧 Tinglash - A1", callback_data: "create_listening_A1" },
-                          { text: "🎧 Tinglash - A2", callback_data: "create_listening_A2" },
-                        ],
-                        [
-                          { text: "🎧 Tinglash - B1", callback_data: "create_listening_B1" },
-                          { text: "🎧 Tinglash - B2", callback_data: "create_listening_B2" },
-                        ],
-                        [
-                          { text: "📖 O'qish - A1", callback_data: "create_reading_A1" },
-                          { text: "📖 O'qish - A2", callback_data: "create_reading_A2" },
-                        ],
-                        [
-                          { text: "📖 O'qish - B1", callback_data: "create_reading_B1" },
-                          { text: "📖 O'qish - B2", callback_data: "create_reading_B2" },
+                          { text: "➕ Yangi test yaratish", callback_data: "select_topic" },
                         ],
                         [
                           { text: "📋 Testlar ro'yxati", callback_data: "view_tests" },
