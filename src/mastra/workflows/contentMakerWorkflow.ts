@@ -1,6 +1,7 @@
 import { createStep, createWorkflow } from "../inngest";
 import { z } from "zod";
 import { contentMakerAgent } from "../agents/contentMakerAgent";
+import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 
 /**
  * Content Maker Workflow
@@ -173,9 +174,9 @@ async function generateImageUrl(topic: string, logger: any): Promise<string> {
   try {
     logger?.info("🎨 Generating image for topic:", topic);
     
-    // Using Unsplash for free educational images
-    const query = encodeURIComponent("artificial intelligence education technology");
-    const imageUrl = `https://source.unsplash.com/800x600/?${query}`;
+    // Using Picsum Photos for reliable direct image URLs
+    // This returns a direct JPEG file that Telegram can use
+    const imageUrl = `https://picsum.photos/800/600?random=${Date.now()}`;
     
     logger?.info("✅ Image URL generated");
     return imageUrl;
@@ -190,48 +191,35 @@ async function generateAudioUrl(text: string, logger: any): Promise<string> {
   const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
 
   if (!elevenLabsApiKey) {
-    logger?.warn("⚠️ ElevenLabs API key not found, using placeholder");
-    return ""; // Empty string indicates no audio
+    logger?.warn("⚠️ ElevenLabs API key not found");
+    return "";
   }
 
   try {
-    const voiceId = "pNInz6obpgDQGcFmaJgB"; // Adam - Arabic voice
+    const elevenlabs = new ElevenLabsClient({
+      apiKey: elevenLabsApiKey,
+    });
 
-    const response = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-      {
-        method: "POST",
-        headers: {
-          Accept: "audio/mpeg",
-          "Content-Type": "application/json",
-          "xi-api-key": elevenLabsApiKey,
-        },
-        body: JSON.stringify({
-          text,
-          model_id: "eleven_multilingual_v2",
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75,
-          },
-        }),
-      }
-    );
+    logger?.info("🎧 Starting audio generation with ElevenLabs SDK...");
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger?.error("❌ ElevenLabs API error", { 
-        status: response.status,
-        error: errorText
-      });
-      return "";
-    }
+    // Arabic voice - you can use any voice ID from your account
+    const voiceId = "JBFqnCBsd6RMkjVDRZzb"; // George - good for educational content
+    
+    const audio = await elevenlabs.textToSpeech.convert(voiceId, {
+      text: text,
+      modelId: "eleven_multilingual_v2",
+      outputFormat: "mp3_44100_128",
+    });
 
     // NOTE: Real implementation'da audio faylni storage'ga saqlash kerak
     // Hozircha success indicator qaytaramiz
-    logger?.info("✅ Audio generated successfully via ElevenLabs");
+    logger?.info("✅ Audio generated successfully via ElevenLabs SDK");
     return "generated"; // Non-empty indicates audio generation succeeded
-  } catch (error) {
-    logger?.error("❌ Audio generation error", { error });
+  } catch (error: any) {
+    logger?.error("❌ Audio generation error", { 
+      error: error?.message || error,
+      details: error?.body || error
+    });
     return "";
   }
 }

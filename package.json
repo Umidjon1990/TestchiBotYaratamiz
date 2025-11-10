@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.24",
+    "@elevenlabs/elevenlabs-js": "^2.22.0",
     "@inngest/realtime": "^0.3.1",
     "@mastra/core": "^0.20.0",
     "@mastra/inngest": "^0.16.0",
@@ -33,6 +34,7 @@
     "@types/pg": "^8.15.5",
     "ai": "^4.3.16",
     "dotenv": "^17.2.0",
+    "elevenlabs": "^1.59.0",
     "exa-js": "^1.8.17",
     "inngest": "^3.40.2",
     "inngest-cli": "^1.11.5",
