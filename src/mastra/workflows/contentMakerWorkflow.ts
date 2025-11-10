@@ -551,8 +551,7 @@ const sendToTelegramChannel = createStep({
           logger?.info("📖 [Step 3] Reading mode - sending text + quiz");
           
           try {
-            // Always send text for reading mode (with or without image)
-            const readingCaption = `📖 *${inputData.podcastTitle}*\n\n${inputData.podcastContent}`;
+            const readingText = `📖 *${inputData.podcastTitle}*\n\n${inputData.podcastContent}`;
             
             logger?.info("📖 [Step 3] Image URL check:", { 
               hasImage: !!(inputData.imageUrl && inputData.imageUrl !== ""),
@@ -560,8 +559,9 @@ const sendToTelegramChannel = createStep({
             });
             
             if (inputData.imageUrl && inputData.imageUrl !== "") {
-              // Send text with image
-              logger?.info("📸 [Step 3] Sending reading text with image...");
+              // SOLUTION: Send image and text separately to avoid caption length limit (1024 chars)
+              // Step 1: Send image with title only
+              logger?.info("📸 [Step 3] Sending image with title...");
               const imageResponse = await fetch(
                 `https://api.telegram.org/bot${telegramBotToken}/sendPhoto`,
                 {
@@ -570,18 +570,43 @@ const sendToTelegramChannel = createStep({
                   body: JSON.stringify({
                     chat_id: channelId,
                     photo: inputData.imageUrl,
-                    caption: readingCaption,
+                    caption: `📖 *${inputData.podcastTitle}*`,
                     parse_mode: "Markdown",
                   }),
                 }
               );
               
               if (imageResponse.ok) {
-                logger?.info("✅ Reading text sent successfully (with image)");
+                logger?.info("✅ Image sent successfully");
               } else {
                 const errorText = await imageResponse.text();
-                logger?.error("❌ Failed to send reading text with image", { 
+                logger?.error("❌ Failed to send image", { 
                   status: imageResponse.status,
+                  error: errorText 
+                });
+              }
+              
+              // Step 2: Send full text as separate message
+              logger?.info("📝 [Step 3] Sending full reading text...");
+              const textResponse = await fetch(
+                `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    chat_id: channelId,
+                    text: inputData.podcastContent,
+                    parse_mode: "Markdown",
+                  }),
+                }
+              );
+              
+              if (textResponse.ok) {
+                logger?.info("✅ Reading text sent successfully");
+              } else {
+                const errorText = await textResponse.text();
+                logger?.error("❌ Failed to send reading text", { 
+                  status: textResponse.status,
                   error: errorText 
                 });
               }
@@ -595,7 +620,7 @@ const sendToTelegramChannel = createStep({
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
                     chat_id: channelId,
-                    text: readingCaption,
+                    text: readingText,
                     parse_mode: "Markdown",
                   }),
                 }
