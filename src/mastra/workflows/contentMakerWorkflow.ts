@@ -383,9 +383,11 @@ ${demoUrl}
 
           if (!audioResponse.ok) {
             const errorText = await audioResponse.text();
-            logger?.warn("⚠️ Failed to send audio preview to Telegram", { 
+            logger?.error("❌ Failed to send audio preview to Telegram", { 
               status: audioResponse.status,
-              error: errorText 
+              statusText: audioResponse.statusText,
+              errorBody: errorText,
+              headers: audioResponse.headers 
             });
           } else {
             logger?.info("✅ Audio preview sent to admin successfully");
@@ -528,9 +530,11 @@ const sendToTelegramChannel = createStep({
 
           if (!audioResponse.ok) {
             const errorText = await audioResponse.text();
-            logger?.warn("⚠️ Failed to send audio to channel", { 
+            logger?.error("❌ Failed to send audio to channel", { 
               status: audioResponse.status,
-              error: errorText 
+              statusText: audioResponse.statusText,
+              errorBody: errorText,
+              headers: audioResponse.headers 
             });
           } else {
             logger?.info("✅ Audio file sent successfully to channel");
