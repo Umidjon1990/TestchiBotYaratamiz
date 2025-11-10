@@ -22,6 +22,7 @@ const generateContentWithAgent = createStep({
   inputSchema: z.object({
     contentType: z.enum(["podcast", "listening", "reading"]).default("podcast"),
     level: z.enum(["A1", "A2", "B1", "B2"]).default("B1"),
+    topic: z.string().optional().describe("Topic/theme for the content (e.g., 'Science', 'Technology', 'Health', or custom topic text)"),
   }),
 
   outputSchema: z.object({
@@ -40,16 +41,18 @@ const generateContentWithAgent = createStep({
     audioFilename: z.string(),
     contentType: z.string(),
     level: z.string(),
+    topic: z.string().optional(),
     success: z.boolean(),
   }),
 
   execute: async ({ inputData, mastra }) => {
     const logger = mastra?.getLogger();
-    const { contentType = "podcast", level = "B1" } = inputData;
+    const { contentType = "podcast", level = "B1", topic } = inputData;
     
     logger?.info("🤖 [Step 1] Using Content Maker Agent to generate content", {
       contentType,
       level,
+      topic: topic || "random",
     });
 
     try {
@@ -78,13 +81,30 @@ const generateContentWithAgent = createStep({
         "B2": "الأسئلة يَجِبُ أَنْ تَكُونَ صَعْبَةً - تَحْتَاجُ إِلَى تَحْلِيلٍ عَمِيقٍ وَفَهْمٍ شَامِلٍ لِلْمُحْتَوَى"
       };
       
+      // Topic selection instruction
+      const topicInstruction = topic
+        ? `1. أنشئ محتوى حول الموضوع التالي: "${topic}"`
+        : `1. اختر موضوعاً مثيراً من أحد المجالات التالية:
+   - العلوم (الكيمياء، الفيزياء، الأحياء، الفضاء)
+   - التكنولوجيا (البرمجة، الذكاء الاصطناعي، الأجهزة الذكية)
+   - الصحة (اللياقة، التغذية، الطب، الصحة النفسية)
+   - الثقافة (الفن، الموسيقى، الأدب، السينما، التصوير)
+   - التاريخ (الأحداث، الشخصيات، الحضارات، الاكتشافات)
+   - البيئة (الطبيعة، التغير المناخي، الطاقة المتجددة)
+   - التعليم (طرق التعلم، التعليم الرقمي، المهارات)
+   - الأعمال (ريادة الأعمال، الاقتصاد، التسويق، الابتكار)
+   
+   **مُهِمٌّ جِدًّا:** 
+   - تَجَنَّبْ المَوَاضِيعَ الدِّينِيَّةَ تَمَامًا
+   - اخْتَرْ مَوْضُوعًا مُثِيرًا وَعَصْرِيًّا وَعَمَلِيًّا`;
+      
       const prompt = `
 الرجاء القيام بالمهام التالية باللغة العربية مع الحركات (التشكيل الكامل):
 
 نوع المحتوى: ${contentTypeArabic}
 المستوى: ${level}
 
-1. اختر موضوعاً مثيراً من أخبار الذكاء الاصطناعي أو التعليم
+${topicInstruction}
 2. **مُهِمٌّ جِدًّا:** ${contentInstruction} مع التشكيل الكامل
 3. أنشئ 3 أسئلة اختيار من متعدد حول المحتوى مع التشكيل
 
@@ -214,6 +234,7 @@ ${levelDifficulty[level as keyof typeof levelDifficulty] || levelDifficulty["B1"
         audioFilename: audioData.filename || "",
         contentType,
         level,
+        topic,
         success: true,
       };
     } catch (error) {
@@ -332,6 +353,7 @@ const sendAdminPreview = createStep({
           audioStoragePath: inputData.audioFilename || "",
           contentType: inputData.contentType,
           level: inputData.level,
+          topic: inputData.topic || null,
         },
         logger
       );

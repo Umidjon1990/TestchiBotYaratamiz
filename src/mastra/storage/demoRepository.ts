@@ -21,6 +21,7 @@ export interface CreateDemoSessionInput {
   audioStoragePath?: string;
   contentType?: string;
   level?: string;
+  topic?: string;
 }
 
 export interface UpdateDemoSessionInput {
@@ -64,6 +65,7 @@ export const demoRepository = {
           audioStoragePath: input.audioStoragePath || null,
           contentType: input.contentType || "podcast",
           level: input.level || "B1",
+          topic: input.topic || null,
           status: "draft",
         })
         .returning();
