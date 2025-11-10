@@ -95,6 +95,30 @@ class AppStorageClient {
     const result = await this.client.delete(filename);
     return result.ok;
   }
+
+  /**
+   * Download a file from App Storage as Buffer
+   */
+  async downloadAsBuffer(filename: string, logger?: any): Promise<Buffer> {
+    await this.init();
+    logger?.info("📥 Downloading from App Storage:", filename);
+    
+    const stream = await this.client.downloadAsStream(filename);
+    
+    // Convert stream to buffer
+    const chunks: Uint8Array[] = [];
+    const reader = stream.getReader();
+    
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) chunks.push(value);
+    }
+    
+    const buffer = Buffer.concat(chunks);
+    logger?.info("✅ Downloaded from App Storage:", { size: buffer.length });
+    return buffer;
+  }
 }
 
 // Singleton instance

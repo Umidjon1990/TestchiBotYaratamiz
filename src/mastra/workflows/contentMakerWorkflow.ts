@@ -2,6 +2,7 @@ import { createStep, createWorkflow } from "../inngest";
 import { z } from "zod";
 import { contentMakerAgent } from "../agents/contentMakerAgent";
 import { demoRepository } from "../storage/demoRepository";
+import { appStorageClient } from "../storage/appStorageClient";
 
 /**
  * Content Maker Workflow
@@ -32,7 +33,7 @@ const generateContentWithAgent = createStep({
       })
     ),
     imageUrl: z.string(),
-    audioUrl: z.string(),
+    audioFilename: z.string(),
     success: z.boolean(),
   }),
 
@@ -163,7 +164,7 @@ const generateContentWithAgent = createStep({
       return {
         ...podcastData,
         imageUrl,
-        audioUrl: audioData.audioUrl,
+        audioFilename: audioData.filename || "",
         success: true,
       };
     } catch (error) {
@@ -253,7 +254,7 @@ const sendAdminPreview = createStep({
       })
     ),
     imageUrl: z.string(),
-    audioUrl: z.string(),
+    audioFilename: z.string(),
     success: z.boolean(),
   }),
 
@@ -271,7 +272,7 @@ const sendAdminPreview = createStep({
       })
     ),
     imageUrl: z.string(),
-    audioUrl: z.string(),
+    audioFilename: z.string(),
   }),
 
   execute: async ({ inputData, mastra }) => {
@@ -291,7 +292,7 @@ const sendAdminPreview = createStep({
     }
 
     try {
-      // Create demo session in database
+      // Create demo session in database  
       logger?.info("💾 [Step 2] Creating demo session in database...");
       const demo = await demoRepository.createDemoSession(
         {
@@ -299,7 +300,7 @@ const sendAdminPreview = createStep({
           podcastContent: inputData.podcastContent,
           questions: inputData.questions,
           imageUrl: inputData.imageUrl,
-          audioUrl: inputData.audioUrl,
+          audioUrl: "", // Will not use URL for demo anymore
         },
         logger
       );
@@ -317,7 +318,7 @@ const sendAdminPreview = createStep({
 ${inputData.podcastContent.substring(0, 400)}...
 
 📊 *الاخْتِبَارَاتُ:* ${inputData.questions.length} أَسْئِلَةٌ
-🎧 *الصَّوْتُ:* ${inputData.audioUrl ? "✅ تَمَّ إِنْشَاؤُهُ" : "⚠️ لَمْ يَتِمَّ الإِنْشَاءُ"}
+🎧 *الصَّوْتُ:* ${inputData.audioFilename ? "✅ تَمَّ إِنْشَاؤُهُ" : "⚠️ لَمْ يَتِمَّ الإِنْشَاءُ"}
 🖼️ *الصُّورَةُ:* ${inputData.imageUrl ? "✅ جَاهِزَةٌ" : "⚠️ غَيْرُ جَاهِزَةٍ"}
 
 🌐 *مُعَايَنَةُ العَرْضِ التَّوْضِيحِيِّ:*
@@ -348,22 +349,13 @@ ${demoUrl}
       logger?.info("✅ [Step 2] Text preview sent to admin");
 
       // Send audio file to admin for preview
-      if (inputData.audioUrl && inputData.audioUrl !== "") {
+      if (inputData.audioFilename && inputData.audioFilename !== "") {
         logger?.info("🎧 [Step 2] Sending audio preview to admin...");
         
         try {
-          // Fetch audio from App Storage URL
-          logger?.info("📥 [Step 2] Fetching audio from URL", { audioUrl: inputData.audioUrl });
-          const audioFetchResponse = await fetch(inputData.audioUrl);
-          
-          if (!audioFetchResponse.ok) {
-            throw new Error(`Failed to fetch audio: ${audioFetchResponse.status}`);
-          }
-          
-          // Convert response to buffer
-          const audioArrayBuffer = await audioFetchResponse.arrayBuffer();
-          const audioBuffer = Buffer.from(audioArrayBuffer);
-          logger?.info("📦 [Step 2] Audio fetched and buffered", { size: audioBuffer.length });
+          // Download audio from App Storage
+          logger?.info("📥 [Step 2] Downloading audio from App Storage", { filename: inputData.audioFilename });
+          const audioBuffer = await appStorageClient.downloadAsBuffer(inputData.audioFilename, logger);
           
           // Use form-data package for better compatibility
           const FormDataPkg = (await import('form-data')).default;
@@ -446,7 +438,7 @@ const sendToTelegramChannel = createStep({
       })
     ),
     imageUrl: z.string(),
-    audioUrl: z.string(),
+    audioFilename: z.string(),
   }),
 
   outputSchema: z.object({
@@ -502,22 +494,13 @@ const sendToTelegramChannel = createStep({
       }
 
       // Step 2: Send audio file (if available)
-      if (inputData.audioUrl && inputData.audioUrl !== "") {
-        logger?.info("🎧 [Step 3] Fetching audio from storage and sending to Telegram...");
+      if (inputData.audioFilename && inputData.audioFilename !== "") {
+        logger?.info("🎧 [Step 3] Downloading audio and sending to Telegram channel...");
         
         try {
-          // Fetch audio from App Storage URL
-          logger?.info("📥 [Step 3] Fetching audio from URL", { audioUrl: inputData.audioUrl });
-          const audioFetchResponse = await fetch(inputData.audioUrl);
-          
-          if (!audioFetchResponse.ok) {
-            throw new Error(`Failed to fetch audio: ${audioFetchResponse.status}`);
-          }
-          
-          // Convert response to buffer
-          const audioArrayBuffer = await audioFetchResponse.arrayBuffer();
-          const audioBuffer = Buffer.from(audioArrayBuffer);
-          logger?.info("📦 [Step 3] Audio fetched and buffered", { size: audioBuffer.length });
+          // Download audio from App Storage
+          logger?.info("📥 [Step 3] Downloading audio from App Storage", { filename: inputData.audioFilename });
+          const audioBuffer = await appStorageClient.downloadAsBuffer(inputData.audioFilename, logger);
           
           // Use form-data package for better compatibility
           const FormDataPkg = (await import('form-data')).default;
@@ -552,7 +535,7 @@ const sendToTelegramChannel = createStep({
             logger?.info("✅ Audio file sent successfully to channel");
           }
         } catch (audioError: any) {
-          logger?.error("❌ Audio fetch/send failed in Step 3", { 
+          logger?.error("❌ Audio download/send failed in Step 3", { 
             errorMessage: audioError?.message,
             errorStack: audioError?.stack 
           });
