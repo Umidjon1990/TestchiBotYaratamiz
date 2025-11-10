@@ -23,11 +23,12 @@ if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_ADMIN_CHAT_ID) {
 
 /**
  * Register Telegram Admin Webhook Routes
+ * UNIFIED webhook handler - processes both messages and callbacks
  */
 export function registerTelegramAdminTriggers() {
   return [
-    // Handle callback button presses (approval/rejection/menu selections)
-    originalRegisterApiRoute("/webhooks/telegram/callback", {
+    // Unified Telegram webhook - handles both /start commands and callback buttons
+    originalRegisterApiRoute("/webhooks/telegram", {
       method: "POST",
       handler: async (c) => {
         const mastra = c.get("mastra");
@@ -35,12 +36,11 @@ export function registerTelegramAdminTriggers() {
         
         try {
           const payload = await c.req.json();
-          logger?.info("📲 [Telegram Admin] Callback received", payload);
+          logger?.info("📲 [Telegram Admin] Webhook received", payload);
 
-          const callbackQuery = payload.callback_query;
-          if (!callbackQuery) {
-            return c.json({ ok: false, message: "No callback_query found" }, 400);
-          }
+          // Handle callback button presses (approval/rejection/menu selections)
+          if (payload.callback_query) {
+            const callbackQuery = payload.callback_query;
 
           const callbackData = callbackQuery.data;
           const chatId = callbackQuery.message.chat.id;
@@ -189,77 +189,66 @@ export function registerTelegramAdminTriggers() {
             logger?.info("🚀 [Telegram Admin] Triggering content creation workflow...");
           }
 
-          return c.json({ ok: true });
-        } catch (error: any) {
-          logger?.error("❌ [Telegram Admin] Callback handler error", {
-            error: error?.message,
-            stack: error?.stack,
-          });
-          return c.json({ ok: false, error: error?.message }, 500);
-        }
-      },
-    }),
-
-    // Handle /start command - show menu
-    originalRegisterApiRoute("/webhooks/telegram/command", {
-      method: "POST",
-      handler: async (c) => {
-        const mastra = c.get("mastra");
-        const logger = mastra.getLogger();
-
-        try {
-          const payload = await c.req.json();
-          logger?.info("📝 [Telegram Admin] Command received", payload);
-
-          const message = payload.message;
-          if (!message || !message.text) {
-            return c.json({ ok: false, message: "No message text found" }, 400);
+            return c.json({ ok: true });
           }
 
-          const chatId = message.chat.id;
-          const text = message.text;
+          // Handle /start command and other messages
+          if (payload.message) {
+            const message = payload.message;
+            
+            if (!message.text) {
+              return c.json({ ok: false, message: "No message text found" }, 400);
+            }
 
-          // Only respond to /start command
-          if (text === "/start" || text === "/menu") {
-            await fetch(
-              `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  chat_id: chatId,
-                  text: `🎓 *مَرْحَبًا بِكَ فِي Content Maker Bot!*\n\nاخْتَرْ نَوْعَ المُحْتَوَى وَالمُسْتَوَى:`,
-                  parse_mode: "Markdown",
-                  reply_markup: {
-                    inline_keyboard: [
-                      [
-                        { text: "🎧 Tinglash - A1", callback_data: "create_listening_A1" },
-                        { text: "🎧 Tinglash - A2", callback_data: "create_listening_A2" },
-                      ],
-                      [
-                        { text: "🎧 Tinglash - B1", callback_data: "create_listening_B1" },
-                        { text: "🎧 Tinglash - B2", callback_data: "create_listening_B2" },
-                      ],
-                      [
-                        { text: "📖 O'qish - A1", callback_data: "create_reading_A1" },
-                        { text: "📖 O'qish - A2", callback_data: "create_reading_A2" },
-                      ],
-                      [
-                        { text: "📖 O'qish - B1", callback_data: "create_reading_B1" },
-                        { text: "📖 O'qish - B2", callback_data: "create_reading_B2" },
-                      ],
-                    ],
-                  },
-                }),
-              }
-            );
+            const chatId = message.chat.id;
+            const text = message.text;
 
-            logger?.info("✅ [Telegram Admin] Menu sent to admin");
+            // Only respond to /start command
+            if (text === "/start" || text === "/menu") {
+              await fetch(
+                `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    chat_id: chatId,
+                    text: `🎓 *مَرْحَبًا بِكَ فِي Content Maker Bot!*\n\nاخْتَرْ نَوْعَ المُحْتَوَى وَالمُسْتَوَى:`,
+                    parse_mode: "Markdown",
+                    reply_markup: {
+                      inline_keyboard: [
+                        [
+                          { text: "🎧 Tinglash - A1", callback_data: "create_listening_A1" },
+                          { text: "🎧 Tinglash - A2", callback_data: "create_listening_A2" },
+                        ],
+                        [
+                          { text: "🎧 Tinglash - B1", callback_data: "create_listening_B1" },
+                          { text: "🎧 Tinglash - B2", callback_data: "create_listening_B2" },
+                        ],
+                        [
+                          { text: "📖 O'qish - A1", callback_data: "create_reading_A1" },
+                          { text: "📖 O'qish - A2", callback_data: "create_reading_A2" },
+                        ],
+                        [
+                          { text: "📖 O'qish - B1", callback_data: "create_reading_B1" },
+                          { text: "📖 O'qish - B2", callback_data: "create_reading_B2" },
+                        ],
+                      ],
+                    },
+                  }),
+                }
+              );
+
+              logger?.info("✅ [Telegram Admin] Menu sent to admin");
+            }
+            
+            return c.json({ ok: true });
           }
 
-          return c.json({ ok: true });
+          // Unknown payload type
+          return c.json({ ok: false, message: "Unknown payload type" }, 400);
+          
         } catch (error: any) {
-          logger?.error("❌ [Telegram Admin] Command handler error", {
+          logger?.error("❌ [Telegram Admin] Webhook handler error", {
             error: error?.message,
             stack: error?.stack,
           });
