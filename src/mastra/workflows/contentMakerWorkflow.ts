@@ -33,7 +33,6 @@ const generateContentWithAgent = createStep({
     ),
     imageUrl: z.string(),
     audioUrl: z.string(),
-    audioBase64: z.string(),
     success: z.boolean(),
   }),
 
@@ -165,7 +164,6 @@ const generateContentWithAgent = createStep({
         ...podcastData,
         imageUrl,
         audioUrl: audioData.audioUrl,
-        audioBase64: audioData.audioBase64,
         success: true,
       };
     } catch (error) {
@@ -256,7 +254,6 @@ const sendAdminPreview = createStep({
     ),
     imageUrl: z.string(),
     audioUrl: z.string(),
-    audioBase64: z.string(),
     success: z.boolean(),
   }),
 
@@ -275,7 +272,6 @@ const sendAdminPreview = createStep({
     ),
     imageUrl: z.string(),
     audioUrl: z.string(),
-    audioBase64: z.string(),
   }),
 
   execute: async ({ inputData, mastra }) => {
@@ -390,7 +386,6 @@ const sendToTelegramChannel = createStep({
     ),
     imageUrl: z.string(),
     audioUrl: z.string(),
-    audioBase64: z.string(),
   }),
 
   outputSchema: z.object({
@@ -446,13 +441,22 @@ const sendToTelegramChannel = createStep({
       }
 
       // Step 2: Send audio file (if available)
-      if (inputData.audioBase64 && inputData.audioBase64 !== "") {
-        logger?.info("🎧 [Step 3] Sending audio file to Telegram via multipart/form-data...");
+      if (inputData.audioUrl && inputData.audioUrl !== "") {
+        logger?.info("🎧 [Step 3] Fetching audio from storage and sending to Telegram...");
         
         try {
-          // Convert base64 to buffer
-          const audioBuffer = Buffer.from(inputData.audioBase64, 'base64');
-          logger?.info("📦 [Step 3] Audio buffer created", { size: audioBuffer.length });
+          // Fetch audio from App Storage URL
+          logger?.info("📥 [Step 3] Fetching audio from URL", { audioUrl: inputData.audioUrl });
+          const audioFetchResponse = await fetch(inputData.audioUrl);
+          
+          if (!audioFetchResponse.ok) {
+            throw new Error(`Failed to fetch audio: ${audioFetchResponse.status}`);
+          }
+          
+          // Convert response to buffer
+          const audioArrayBuffer = await audioFetchResponse.arrayBuffer();
+          const audioBuffer = Buffer.from(audioArrayBuffer);
+          logger?.info("📦 [Step 3] Audio fetched and buffered", { size: audioBuffer.length });
           
           // Create FormData for multipart upload
           const FormData = (await import('node:buffer')).Blob ? globalThis.FormData : (await import('formdata-node')).FormData;
@@ -480,10 +484,10 @@ const sendToTelegramChannel = createStep({
             const errorText = await audioResponse.text();
             logger?.warn("⚠️ Failed to send audio", { error: errorText });
           } else {
-            logger?.info("✅ Audio file sent successfully via buffer");
+            logger?.info("✅ Audio file sent successfully via fetched buffer");
           }
         } catch (audioError) {
-          logger?.warn("⚠️ Audio sending failed", { error: audioError });
+          logger?.warn("⚠️ Audio fetch/send failed", { error: audioError });
         }
       }
 
