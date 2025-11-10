@@ -290,6 +290,7 @@ const sendAdminPreview = createStep({
           questions: inputData.questions,
           imageUrl: inputData.imageUrl,
           audioUrl: inputData.audioUrl || "",
+          audioStoragePath: inputData.audioFilename || "",
           contentType: inputData.contentType,
           level: inputData.level,
         },
@@ -467,7 +468,8 @@ const sendToTelegramChannel = createStep({
       })
     ),
     imageUrl: z.string(),
-    audioFilename: z.string(),
+    audioStoragePath: z.string(),
+    contentType: z.string().default("podcast"),
   }),
 
   outputSchema: z.object({
@@ -478,7 +480,9 @@ const sendToTelegramChannel = createStep({
 
   execute: async ({ inputData, mastra }) => {
     const logger = mastra?.getLogger();
-    logger?.info("📤 [Step 3] Sending to Telegram channel...");
+    const { contentType = "podcast" } = inputData;
+    
+    logger?.info("📤 [Step 3] Sending to Telegram channel...", { contentType });
 
     const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
     const channelId = process.env.TELEGRAM_CHANNEL_ID;
@@ -493,90 +497,136 @@ const sendToTelegramChannel = createStep({
     }
 
     try {
-      // Step 1: Send image with podcast content caption
-      if (inputData.imageUrl && inputData.imageUrl !== "") {
-        logger?.info("🖼️ [Step 3] Sending image with content...");
+      // Branch based on content type
+      switch (contentType) {
+        case "listening":
+          // LISTENING: Audio + Quiz only (no text)
+          logger?.info("🎧 [Step 3] Listening mode - sending audio + quiz");
+          break;
         
-        const caption = `🎙️ *${inputData.podcastTitle}*\n\n${inputData.podcastContent}`;
-        
-        const imageResponse = await fetch(
-          `https://api.telegram.org/bot${telegramBotToken}/sendPhoto`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              chat_id: channelId,
-              photo: inputData.imageUrl,
-              caption: caption,
-              parse_mode: "Markdown",
-            }),
+        case "reading":
+          // READING: Text + Quiz only (no audio)
+          logger?.info("📖 [Step 3] Reading mode - sending text + quiz");
+          
+          if (inputData.imageUrl && inputData.imageUrl !== "") {
+            const caption = `📖 *${inputData.podcastTitle}*\n\n${inputData.podcastContent}`;
+            
+            const imageResponse = await fetch(
+              `https://api.telegram.org/bot${telegramBotToken}/sendPhoto`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  chat_id: channelId,
+                  photo: inputData.imageUrl,
+                  caption: caption,
+                  parse_mode: "Markdown",
+                }),
+              }
+            );
+            
+            if (imageResponse.ok) {
+              logger?.info("✅ Reading content sent");
+            }
           }
-        );
-
-        if (!imageResponse.ok) {
-          logger?.warn("⚠️ Failed to send image, sending text instead");
-        } else {
-          logger?.info("✅ Image and content sent");
-        }
+          break;
+        
+        case "podcast":
+        default:
+          // PODCAST: Text + Audio + Quiz (full content)
+          logger?.info("🎙️ [Step 3] Podcast mode - sending full content");
+          
+          if (inputData.imageUrl && inputData.imageUrl !== "") {
+            const caption = `🎙️ *${inputData.podcastTitle}*\n\n${inputData.podcastContent}`;
+            
+            const imageResponse = await fetch(
+              `https://api.telegram.org/bot${telegramBotToken}/sendPhoto`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  chat_id: channelId,
+                  photo: inputData.imageUrl,
+                  caption: caption,
+                  parse_mode: "Markdown",
+                }),
+              }
+            );
+            
+            if (imageResponse.ok) {
+              logger?.info("✅ Image and content sent");
+            }
+          }
+          break;
       }
 
-      // Step 2: Send audio file (if available)
-      if (inputData.audioFilename && inputData.audioFilename !== "") {
+      // Send audio (for listening and podcast modes only)
+      if ((contentType === "listening" || contentType === "podcast") && inputData.audioStoragePath && inputData.audioStoragePath !== "") {
         logger?.info("🎧 [Step 3] Downloading audio and sending to Telegram channel...");
         
         try {
-          // Download audio from App Storage
-          logger?.info("📥 [Step 3] Downloading audio from App Storage", { filename: inputData.audioFilename });
-          const audioBuffer = await appStorageClient.downloadAsBuffer(inputData.audioFilename, logger);
+          // Check if audioStoragePath is a URL (legacy demos) or a filename (new demos)
+          const isLegacyUrl = inputData.audioStoragePath.startsWith("http");
           
-          // Use form-data package with submit method (compatible way)
-          const FormDataPkg = (await import('form-data')).default;
-          const formData = new FormDataPkg();
-          
-          // Append fields to FormData
-          formData.append('chat_id', channelId);
-          formData.append('audio', audioBuffer, {
-            filename: 'podcast.mp3',
-            contentType: 'audio/mpeg',
-          });
-          formData.append('caption', '🎧 *استمع للبودكاست:*\n\n' + inputData.podcastTitle);
-          formData.append('parse_mode', 'Markdown');
-          
-          // Use formData.submit() instead of fetch() for compatibility
-          const audioResponse = await new Promise((resolve, reject) => {
-            formData.submit({
-              protocol: 'https:',
-              host: 'api.telegram.org',
-              path: `/bot${telegramBotToken}/sendAudio`,
-              method: 'POST',
-            }, (err, res) => {
-              if (err) return reject(err);
-              resolve(res);
+          if (isLegacyUrl) {
+            // Legacy demo - skip audio download, log warning
+            logger?.warn("⚠️ [Step 3] Legacy demo detected (audioStoragePath is URL, not filename). Skipping audio upload.", {
+              audioStoragePath: inputData.audioStoragePath.substring(0, 100),
             });
-          });
-
-          // Read response body
-          const chunks: Buffer[] = [];
-          for await (const chunk of audioResponse as any) {
-            chunks.push(chunk);
-          }
-          const responseText = Buffer.concat(chunks).toString();
-          
-          if ((audioResponse as any).statusCode === 200) {
-            logger?.info("✅ Audio file sent successfully to channel");
+            // Skip audio upload for legacy demos
+            // TODO: Backfill audioStoragePath for old demos
           } else {
-            let errorDetails;
-            try {
-              errorDetails = JSON.parse(responseText);
-            } catch {
-              errorDetails = responseText;
-            }
-            logger?.error("❌ Failed to send audio to channel", { 
-              status: (audioResponse as any).statusCode,
-              errorResponse: errorDetails
+            // New demo - download from App Storage using filename
+            logger?.info("📥 [Step 3] Downloading audio from App Storage", { storagePath: inputData.audioStoragePath });
+            const audioBuffer = await appStorageClient.downloadAsBuffer(inputData.audioStoragePath, logger);
+          
+            // Use form-data package with submit method (compatible way)
+            const FormDataPkg = (await import('form-data')).default;
+            const formData = new FormDataPkg();
+            
+            // Append fields to FormData
+            formData.append('chat_id', channelId);
+            formData.append('audio', audioBuffer, {
+              filename: 'podcast.mp3',
+              contentType: 'audio/mpeg',
             });
+            formData.append('caption', '🎧 *استمع للبودكاست:*\n\n' + inputData.podcastTitle);
+            formData.append('parse_mode', 'Markdown');
+            
+            // Use formData.submit() instead of fetch() for compatibility
+            const audioResponse = await new Promise((resolve, reject) => {
+              formData.submit({
+                protocol: 'https:',
+                host: 'api.telegram.org',
+                path: `/bot${telegramBotToken}/sendAudio`,
+                method: 'POST',
+              }, (err, res) => {
+                if (err) return reject(err);
+                resolve(res);
+              });
+            });
+
+            // Read response body
+            const chunks: Buffer[] = [];
+            for await (const chunk of audioResponse as any) {
+              chunks.push(chunk);
+            }
+            const responseText = Buffer.concat(chunks).toString();
+            
+            if ((audioResponse as any).statusCode === 200) {
+              logger?.info("✅ Audio file sent successfully to channel");
+            } else {
+              let errorDetails;
+              try {
+                errorDetails = JSON.parse(responseText);
+              } catch {
+                errorDetails = responseText;
+              }
+              logger?.error("❌ Failed to send audio to channel", { 
+                status: (audioResponse as any).statusCode,
+                errorResponse: errorDetails
+              });
+            }
           }
         } catch (audioError: any) {
           logger?.error("❌ Audio download/send failed in Step 3", { 

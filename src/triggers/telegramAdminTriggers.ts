@@ -115,7 +115,8 @@ export function registerTelegramAdminTriggers() {
                   podcastContent: demoData.podcastContent,
                   questions: demoData.questions as any,
                   imageUrl: demoData.imageUrl,
-                  audioFilename: demoData.audioUrl || "",
+                  audioStoragePath: demoData.audioStoragePath || demoData.audioUrl || "",
+                  contentType: demoData.contentType || "podcast",
                 },
                 mastra,
               };

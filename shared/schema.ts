@@ -20,6 +20,7 @@ export const demoSessions = pgTable("demo_sessions", {
   >(),
   imageUrl: text("image_url").notNull(),
   audioUrl: text("audio_url").notNull(),
+  audioStoragePath: text("audio_storage_path"), // Just the filename for App Storage downloads
   status: varchar("status", { length: 50 }).notNull().default("draft"), // draft, approved, rejected, posted
   contentType: varchar("content_type", { length: 20 }).notNull().default("podcast"), // podcast, listening, reading
   level: varchar("level", { length: 5 }).default("B1"), // A1, A2, B1, B2

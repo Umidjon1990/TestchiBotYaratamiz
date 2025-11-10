@@ -18,6 +18,7 @@ export interface CreateDemoSessionInput {
   }>;
   imageUrl: string;
   audioUrl: string;
+  audioStoragePath?: string;
   contentType?: string;
   level?: string;
 }
@@ -60,6 +61,7 @@ export const demoRepository = {
           questions: input.questions,
           imageUrl: input.imageUrl,
           audioUrl: input.audioUrl,
+          audioStoragePath: input.audioStoragePath || null,
           contentType: input.contentType || "podcast",
           level: input.level || "B1",
           status: "draft",
