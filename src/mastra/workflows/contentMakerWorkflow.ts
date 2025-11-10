@@ -196,7 +196,7 @@ async function generateAudioData(
   text: string,
   title: string,
   logger: any
-): Promise<{ audioUrl: string; audioBase64: string }> {
+): Promise<{ audioUrl: string; audioBase64: string; filename: string }> {
   try {
     logger?.info("🎧 [generateAudioData] Starting audio generation...");
 
@@ -213,7 +213,7 @@ async function generateAudioData(
       runtimeContext: undefined as any, // Tool doesn't strictly need runtime context
     });
 
-    if (result.success && result.audioUrl && result.audioBase64) {
+    if (result.success && result.audioUrl && result.audioBase64 && result.filename) {
       logger?.info("✅ [generateAudioData] Audio generated and stored:", {
         url: result.audioUrl,
         filename: result.filename,
@@ -222,14 +222,15 @@ async function generateAudioData(
       return {
         audioUrl: result.audioUrl,
         audioBase64: result.audioBase64,
+        filename: result.filename,
       };
     } else {
       logger?.warn("⚠️ [generateAudioData] Audio generation failed:", result.message);
-      return { audioUrl: "", audioBase64: "" };
+      return { audioUrl: "", audioBase64: "", filename: "" };
     }
   } catch (error) {
     logger?.error("❌ [generateAudioData] Error:", { error });
-    return { audioUrl: "", audioBase64: "" };
+    return { audioUrl: "", audioBase64: "", filename: "" };
   }
 }
 
