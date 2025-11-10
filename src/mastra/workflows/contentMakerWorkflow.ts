@@ -1,6 +1,7 @@
 import { createStep, createWorkflow } from "../inngest";
 import { z } from "zod";
 import { contentMakerAgent } from "../agents/contentMakerAgent";
+import { generateAudio } from "../tools/generateAudio";
 
 /**
  * Content Maker Workflow
@@ -154,9 +155,13 @@ const generateContentWithAgent = createStep({
 
       // Generate audio using tool (ElevenLabs + App Storage)
       logger?.info("🎧 [Step 1] Calling generateAudio tool...");
-      const audioResult = await mastra?.getTool("generate-audio")?.execute({
-        text: podcastData.podcastContent,
-        title: podcastData.podcastTitle,
+      const audioResult = await generateAudio.execute({
+        context: {
+          text: podcastData.podcastContent,
+          title: podcastData.podcastTitle,
+        },
+        mastra,
+        runtimeContext: {},
       });
       
       const audioUrl = audioResult?.audioUrl || "";
