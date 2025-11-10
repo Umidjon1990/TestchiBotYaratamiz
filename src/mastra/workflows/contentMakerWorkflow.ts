@@ -1,7 +1,6 @@
 import { createStep, createWorkflow } from "../inngest";
 import { z } from "zod";
 import { contentMakerAgent } from "../agents/contentMakerAgent";
-import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 
 /**
  * Content Maker Workflow
@@ -153,8 +152,22 @@ const generateContentWithAgent = createStep({
       // Generate image for podcast topic
       const imageUrl = await generateImageUrl(podcastData.podcastTitle, logger);
 
-      // Generate audio using ElevenLabs
-      const audioUrl = await generateAudioUrl(podcastData.podcastContent, logger);
+      // Generate audio using tool (ElevenLabs + App Storage)
+      logger?.info("🎧 [Step 1] Calling generateAudio tool...");
+      const audioResult = await mastra?.getTool("generate-audio")?.execute({
+        text: podcastData.podcastContent,
+        title: podcastData.podcastTitle,
+      });
+      
+      const audioUrl = audioResult?.audioUrl || "";
+      if (audioResult?.success) {
+        logger?.info("✅ [Step 1] Audio generated and stored:", {
+          url: audioUrl,
+          filename: audioResult?.filename,
+        });
+      } else {
+        logger?.warn("⚠️ [Step 1] Audio generation failed:", audioResult?.message);
+      }
 
       return {
         ...podcastData,
@@ -186,43 +199,6 @@ async function generateImageUrl(topic: string, logger: any): Promise<string> {
   }
 }
 
-// Helper function for audio generation
-async function generateAudioUrl(text: string, logger: any): Promise<string> {
-  const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
-
-  if (!elevenLabsApiKey) {
-    logger?.warn("⚠️ ElevenLabs API key not found");
-    return "";
-  }
-
-  try {
-    const elevenlabs = new ElevenLabsClient({
-      apiKey: elevenLabsApiKey,
-    });
-
-    logger?.info("🎧 Starting audio generation with ElevenLabs SDK...");
-
-    // Arabic voice - you can use any voice ID from your account
-    const voiceId = "JBFqnCBsd6RMkjVDRZzb"; // George - good for educational content
-    
-    const audio = await elevenlabs.textToSpeech.convert(voiceId, {
-      text: text,
-      modelId: "eleven_multilingual_v2",
-      outputFormat: "mp3_44100_128",
-    });
-
-    // NOTE: Real implementation'da audio faylni storage'ga saqlash kerak
-    // Hozircha success indicator qaytaramiz
-    logger?.info("✅ Audio generated successfully via ElevenLabs SDK");
-    return "generated"; // Non-empty indicates audio generation succeeded
-  } catch (error: any) {
-    logger?.error("❌ Audio generation error", { 
-      error: error?.message || error,
-      details: error?.body || error
-    });
-    return "";
-  }
-}
 
 /**
  * Step 2: Send Preview to Admin
@@ -411,11 +387,37 @@ const sendToTelegramChannel = createStep({
         }
       }
 
-      // Step 2: Send audio note (if available)
+      // Step 2: Send audio file (if available)
       if (inputData.audioUrl && inputData.audioUrl !== "") {
-        logger?.info("🎧 [Step 3] Audio was generated successfully");
-        // Note: Audio file storage and delivery will be implemented in future version
-        // For now, we just log that audio was generated
+        logger?.info("🎧 [Step 3] Sending audio file to Telegram...");
+        
+        try {
+          const audioResponse = await fetch(
+            `https://api.telegram.org/bot${telegramBotToken}/sendAudio`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                chat_id: channelId,
+                audio: inputData.audioUrl,
+                title: inputData.podcastTitle,
+                caption: "🎧 *استمع للبودكاست:*",
+                parse_mode: "Markdown",
+              }),
+            }
+          );
+
+          if (!audioResponse.ok) {
+            const errorText = await audioResponse.text();
+            logger?.warn("⚠️ Failed to send audio", { error: errorText });
+          } else {
+            logger?.info("✅ Audio file sent successfully");
+          }
+        } catch (audioError) {
+          logger?.warn("⚠️ Audio sending failed", { error: audioError });
+        }
       }
 
       // Step 3: Send questions
@@ -430,11 +432,6 @@ const sendToTelegramChannel = createStep({
         });
         messageText += `\n💡 _${q.explanation}_\n\n`;
       });
-
-      // Add audio note to message
-      if (inputData.audioUrl && inputData.audioUrl !== "") {
-        messageText += `\n🎧 *ملاحظة:* تم إنشاء التسجيل الصوتي للبودكاست بنجاح عبر ElevenLabs.`;
-      }
 
       const response = await fetch(
         `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,

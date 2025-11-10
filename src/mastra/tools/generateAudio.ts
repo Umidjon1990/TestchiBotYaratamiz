@@ -75,9 +75,12 @@ export const generateAudio = createTool({
 
       logger?.info("📦 [generateAudio] Audio stream received, uploading to App Storage...");
 
+      // Convert web ReadableStream to Node.js Readable stream
+      const nodeStream = Readable.from(audioStream as any);
+
       // Upload audio stream to App Storage
       const { url, filename } = await appStorageClient.uploadAudioStream(
-        audioStream as Readable,
+        nodeStream,
         context.title
       );
 
