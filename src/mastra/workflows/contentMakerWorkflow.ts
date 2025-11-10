@@ -358,26 +358,29 @@ ${demoUrl}
           logger?.info("📥 [Step 2] Downloading audio from App Storage", { filename: inputData.audioFilename });
           const audioBuffer = await appStorageClient.downloadAsBuffer(inputData.audioFilename, logger);
           
-          // Use form-data package for better compatibility
+          // Use form-data package
           const FormDataPkg = (await import('form-data')).default;
           const formData = new FormDataPkg();
           
           // Append fields to FormData
           formData.append('chat_id', adminChatId);
           formData.append('audio', audioBuffer, {
-            filename: 'podcast-preview.mp3',
+            filename: 'podcast.mp3',
             contentType: 'audio/mpeg',
+            knownLength: audioBuffer.length,
           });
-          formData.append('title', inputData.podcastTitle);
-          formData.append('caption', '🎧 معاينة الصوت');
+          formData.append('caption', '🎧 *معاينة الصوت*\n\n' + inputData.podcastTitle);
           formData.append('parse_mode', 'Markdown');
+          
+          // Send with proper content-length header
+          const headers = formData.getHeaders();
           
           const audioResponse = await fetch(
             `https://api.telegram.org/bot${telegramBotToken}/sendAudio`,
             {
               method: "POST",
-              headers: formData.getHeaders(),
-              body: formData as any,
+              headers: headers,
+              body: formData,
             }
           );
 
@@ -386,8 +389,7 @@ ${demoUrl}
             logger?.error("❌ Failed to send audio preview to Telegram", { 
               status: audioResponse.status,
               statusText: audioResponse.statusText,
-              errorBody: errorText,
-              headers: audioResponse.headers 
+              errorBody: errorText
             });
           } else {
             logger?.info("✅ Audio preview sent to admin successfully");
@@ -505,7 +507,7 @@ const sendToTelegramChannel = createStep({
           logger?.info("📥 [Step 3] Downloading audio from App Storage", { filename: inputData.audioFilename });
           const audioBuffer = await appStorageClient.downloadAsBuffer(inputData.audioFilename, logger);
           
-          // Use form-data package for better compatibility
+          // Use form-data package
           const FormDataPkg = (await import('form-data')).default;
           const formData = new FormDataPkg();
           
@@ -514,17 +516,20 @@ const sendToTelegramChannel = createStep({
           formData.append('audio', audioBuffer, {
             filename: 'podcast.mp3',
             contentType: 'audio/mpeg',
+            knownLength: audioBuffer.length,
           });
-          formData.append('title', inputData.podcastTitle);
-          formData.append('caption', '🎧 *استمع للبودكاست:*');
+          formData.append('caption', '🎧 *استمع للبودكاست:*\n\n' + inputData.podcastTitle);
           formData.append('parse_mode', 'Markdown');
+          
+          // Send with proper content-length header
+          const headers = formData.getHeaders();
           
           const audioResponse = await fetch(
             `https://api.telegram.org/bot${telegramBotToken}/sendAudio`,
             {
               method: "POST",
-              headers: formData.getHeaders(),
-              body: formData as any,
+              headers: headers,
+              body: formData,
             }
           );
 
@@ -533,8 +538,7 @@ const sendToTelegramChannel = createStep({
             logger?.error("❌ Failed to send audio to channel", { 
               status: audioResponse.status,
               statusText: audioResponse.statusText,
-              errorBody: errorText,
-              headers: audioResponse.headers 
+              errorBody: errorText
             });
           } else {
             logger?.info("✅ Audio file sent successfully to channel");
