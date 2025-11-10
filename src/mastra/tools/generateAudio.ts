@@ -1,37 +1,43 @@
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
+import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
+import { appStorageClient } from "../storage/appStorageClient";
+import { Readable } from "stream";
 
 /**
  * Audio Generator Tool
  * 
- * ElevenLabs API orqali matndan professional audio yaratadi
+ * ElevenLabs API orqali matndan professional audio yaratadi va App Storage'ga saqlaydi
  */
 export const generateAudio = createTool({
   id: "generate-audio",
 
   description:
-    "Generates professional audio from text using ElevenLabs API for podcast production.",
+    "Generates professional Arabic audio from text using ElevenLabs API and stores it in App Storage for podcast production.",
 
   inputSchema: z.object({
-    text: z.string().describe("Text content to convert to audio"),
+    text: z.string().describe("Text content to convert to audio (Arabic with harakats)"),
+    title: z.string().describe("Podcast title for filename generation"),
     voiceId: z
       .string()
       .optional()
-      .describe("ElevenLabs voice ID (optional, uses default if not provided)"),
+      .describe("ElevenLabs voice ID (optional, uses Arabic voice if not provided)"),
   }),
 
   outputSchema: z.object({
-    audioUrl: z.string().describe("URL or path to generated audio file"),
+    audioUrl: z.string().describe("Public URL to the generated audio file"),
     duration: z.number().describe("Audio duration in seconds (estimated)"),
-    success: z.boolean().describe("Whether audio generation was successful"),
+    success: z.boolean().describe("Whether audio generation and storage was successful"),
     message: z.string().describe("Status message"),
+    filename: z.string().optional().describe("Storage filename"),
   }),
 
   execute: async ({ context, mastra }) => {
     const logger = mastra?.getLogger();
-    logger?.info("🎧 [generateAudio] Starting audio generation", {
+    logger?.info("🎧 [generateAudio] Starting audio generation and storage", {
       textLength: context.text.length,
-      voiceId: context.voiceId || "default",
+      title: context.title,
+      voiceId: context.voiceId || "default-arabic",
     });
 
     try {
@@ -39,81 +45,65 @@ export const generateAudio = createTool({
 
       if (!elevenLabsApiKey) {
         logger?.warn(
-          "⚠️ [generateAudio] ElevenLabs API key not found, returning mock audio"
+          "⚠️ [generateAudio] ElevenLabs API key not found"
         );
         return {
-          audioUrl: "https://example.com/mock-podcast-audio.mp3",
-          duration: 120,
+          audioUrl: "",
+          duration: 0,
           success: false,
           message:
             "ElevenLabs API key not configured. Please set ELEVENLABS_API_KEY environment variable.",
         };
       }
 
-      // ElevenLabs API integration
-      // استخدام صوت عربي - Adam (صوت ذكوري واضح يدعم العربية)
-      const voiceId = context.voiceId || "pNInz6obpgDQGcFmaJgB"; // Adam - Arabic voice
+      // Initialize ElevenLabs client
+      const elevenlabs = new ElevenLabsClient({
+        apiKey: elevenLabsApiKey,
+      });
+
+      // استخدام صوت عربي - George (صوت واضح للمحتوى التعليمي)
+      const voiceId = context.voiceId || "JBFqnCBsd6RMkjVDRZzb"; // George - Arabic educational voice
 
       logger?.info("📡 [generateAudio] Calling ElevenLabs API", { voiceId });
 
-      const response = await fetch(
-        `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-        {
-          method: "POST",
-          headers: {
-            Accept: "audio/mpeg",
-            "Content-Type": "application/json",
-            "xi-api-key": elevenLabsApiKey,
-          },
-          body: JSON.stringify({
-            text: context.text,
-            model_id: "eleven_multilingual_v2", // يدعم اللغة العربية
-            voice_settings: {
-              stability: 0.5,
-              similarity_boost: 0.75,
-            },
-          }),
-        }
+      // Generate audio with streaming
+      const audioStream = await elevenlabs.textToSpeech.convert(voiceId, {
+        text: context.text,
+        modelId: "eleven_multilingual_v2", // يدعم اللغة العربية
+        outputFormat: "mp3_44100_128",
+      });
+
+      logger?.info("📦 [generateAudio] Audio stream received, uploading to App Storage...");
+
+      // Upload audio stream to App Storage
+      const { url, filename } = await appStorageClient.uploadAudioStream(
+        audioStream as Readable,
+        context.title
       );
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        logger?.error("❌ [generateAudio] ElevenLabs API error", {
-          status: response.status,
-          error: errorText,
-        });
-        throw new Error(
-          `ElevenLabs API error: ${response.status} - ${errorText}`
-        );
-      }
-
-      // Audio faylni saqlash (bu yerda temporary storage)
-      const audioBuffer = await response.arrayBuffer();
-      const audioBlob = Buffer.from(audioBuffer);
-
-      // Real implementation'da faylni object storage yoki CDN ga yuklash kerak
-      // Hozircha mock URL qaytaramiz
       const estimatedDuration = Math.ceil(context.text.length / 10); // ~10 characters per second
 
-      logger?.info("✅ [generateAudio] Audio generated successfully", {
-        size: audioBlob.length,
+      logger?.info("✅ [generateAudio] Audio generated and stored successfully", {
+        filename,
+        url,
         estimatedDuration,
       });
 
       return {
-        audioUrl: "https://storage.example.com/podcast-audio.mp3",
+        audioUrl: url,
         duration: estimatedDuration,
         success: true,
-        message: "Audio generated successfully via ElevenLabs",
+        message: "Audio generated successfully via ElevenLabs and stored in App Storage",
+        filename,
       };
     } catch (error) {
-      logger?.error("❌ [generateAudio] Error generating audio", { error });
+      logger?.error("❌ [generateAudio] Error generating/storing audio", { error });
 
       return {
         audioUrl: "",
         duration: 0,
         success: false,
-        message: `Audio generation failed: ${error}`,
+        message: `Audio generation/storage failed: ${error}`,
       };
     }
   },
