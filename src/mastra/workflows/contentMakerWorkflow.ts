@@ -550,46 +550,71 @@ const sendToTelegramChannel = createStep({
           // READING: Text + Quiz only (no audio)
           logger?.info("📖 [Step 3] Reading mode - sending text + quiz");
           
-          // Always send text for reading mode (with or without image)
-          const readingCaption = `📖 *${inputData.podcastTitle}*\n\n${inputData.podcastContent}`;
-          
-          if (inputData.imageUrl && inputData.imageUrl !== "") {
-            // Send text with image
-            const imageResponse = await fetch(
-              `https://api.telegram.org/bot${telegramBotToken}/sendPhoto`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  chat_id: channelId,
-                  photo: inputData.imageUrl,
-                  caption: readingCaption,
-                  parse_mode: "Markdown",
-                }),
-              }
-            );
+          try {
+            // Always send text for reading mode (with or without image)
+            const readingCaption = `📖 *${inputData.podcastTitle}*\n\n${inputData.podcastContent}`;
             
-            if (imageResponse.ok) {
-              logger?.info("✅ Reading text sent (with image)");
-            }
-          } else {
-            // Send text without image (as regular message)
-            const textResponse = await fetch(
-              `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  chat_id: channelId,
-                  text: readingCaption,
-                  parse_mode: "Markdown",
-                }),
-              }
-            );
+            logger?.info("📖 [Step 3] Image URL check:", { 
+              hasImage: !!(inputData.imageUrl && inputData.imageUrl !== ""),
+              imageUrl: inputData.imageUrl?.substring(0, 50) 
+            });
             
-            if (textResponse.ok) {
-              logger?.info("✅ Reading text sent (without image)");
+            if (inputData.imageUrl && inputData.imageUrl !== "") {
+              // Send text with image
+              logger?.info("📸 [Step 3] Sending reading text with image...");
+              const imageResponse = await fetch(
+                `https://api.telegram.org/bot${telegramBotToken}/sendPhoto`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    chat_id: channelId,
+                    photo: inputData.imageUrl,
+                    caption: readingCaption,
+                    parse_mode: "Markdown",
+                  }),
+                }
+              );
+              
+              if (imageResponse.ok) {
+                logger?.info("✅ Reading text sent successfully (with image)");
+              } else {
+                const errorText = await imageResponse.text();
+                logger?.error("❌ Failed to send reading text with image", { 
+                  status: imageResponse.status,
+                  error: errorText 
+                });
+              }
+            } else {
+              // Send text without image (as regular message)
+              logger?.info("📝 [Step 3] Sending reading text without image...");
+              const textResponse = await fetch(
+                `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    chat_id: channelId,
+                    text: readingCaption,
+                    parse_mode: "Markdown",
+                  }),
+                }
+              );
+              
+              if (textResponse.ok) {
+                logger?.info("✅ Reading text sent successfully (without image)");
+              } else {
+                const errorText = await textResponse.text();
+                logger?.error("❌ Failed to send reading text", { 
+                  status: textResponse.status,
+                  error: errorText 
+                });
+              }
             }
+          } catch (textError: any) {
+            logger?.error("❌ [Step 3] Error sending reading text", { 
+              error: textError.message 
+            });
           }
           break;
         
