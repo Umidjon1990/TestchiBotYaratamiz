@@ -105,8 +105,9 @@ export function registerTelegramAdminTriggers() {
               const demoData = demo[0];
               
               // Execute Step 3 with full demo data
-              const result = await sendToTelegramChannel.execute({
-                mastra,
+              // Note: sendToTelegramChannel is a Mastra step, not a regular function
+              // We'll call it directly with the proper context
+              const stepContext = {
                 inputData: {
                   previewSent: true,
                   message: "Approved by admin",
@@ -114,9 +115,12 @@ export function registerTelegramAdminTriggers() {
                   podcastContent: demoData.podcastContent,
                   questions: demoData.questions as any,
                   imageUrl: demoData.imageUrl,
-                  audioFilename: demoData.audioUrl.split("/").pop() || "",
+                  audioFilename: demoData.audioUrl || "",
                 },
-              });
+                mastra,
+              };
+              
+              const result = await (sendToTelegramChannel as any).execute(stepContext);
               
               logger?.info("✅ [Telegram Admin] Content sent to channel", { result });
               

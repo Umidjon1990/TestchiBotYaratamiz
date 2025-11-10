@@ -233,20 +233,9 @@ const sendAdminPreview = createStep({
   }),
 
   outputSchema: z.object({
-    previewSent: z.boolean(),
+    success: z.boolean(),
     message: z.string(),
-    podcastTitle: z.string(),
-    podcastContent: z.string(),
-    questions: z.array(
-      z.object({
-        question: z.string(),
-        options: z.array(z.string()),
-        correctAnswer: z.number(),
-        explanation: z.string(),
-      })
-    ),
-    imageUrl: z.string(),
-    audioFilename: z.string(),
+    demoId: z.number(),
   }),
 
   execute: async ({ inputData, mastra }) => {
@@ -420,9 +409,9 @@ ${q.options.map((opt, idx) => `${String.fromCharCode(65 + idx)}) ${opt}`).join('
     } catch (error) {
       logger?.error("❌ [Step 2] Error sending preview", { error });
       return {
-        previewSent: false,
+        success: false,
         message: `Failed to send preview: ${error}`,
-        ...inputData,
+        demoId: 0,
       };
     }
   },
