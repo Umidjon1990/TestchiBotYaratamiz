@@ -550,9 +550,11 @@ const sendToTelegramChannel = createStep({
           // READING: Text + Quiz only (no audio)
           logger?.info("📖 [Step 3] Reading mode - sending text + quiz");
           
+          // Always send text for reading mode (with or without image)
+          const readingCaption = `📖 *${inputData.podcastTitle}*\n\n${inputData.podcastContent}`;
+          
           if (inputData.imageUrl && inputData.imageUrl !== "") {
-            const caption = `📖 *${inputData.podcastTitle}*\n\n${inputData.podcastContent}`;
-            
+            // Send text with image
             const imageResponse = await fetch(
               `https://api.telegram.org/bot${telegramBotToken}/sendPhoto`,
               {
@@ -561,14 +563,32 @@ const sendToTelegramChannel = createStep({
                 body: JSON.stringify({
                   chat_id: channelId,
                   photo: inputData.imageUrl,
-                  caption: caption,
+                  caption: readingCaption,
                   parse_mode: "Markdown",
                 }),
               }
             );
             
             if (imageResponse.ok) {
-              logger?.info("✅ Reading content sent");
+              logger?.info("✅ Reading text sent (with image)");
+            }
+          } else {
+            // Send text without image (as regular message)
+            const textResponse = await fetch(
+              `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  chat_id: channelId,
+                  text: readingCaption,
+                  parse_mode: "Markdown",
+                }),
+              }
+            );
+            
+            if (textResponse.ok) {
+              logger?.info("✅ Reading text sent (without image)");
             }
           }
           break;
