@@ -299,6 +299,31 @@ async function generateAudioData(
       };
     } else {
       logger?.warn("⚠️ [generateAudioData] Audio generation failed:", result.message);
+      
+      // If Lahajati failed, fallback to ElevenLabs
+      if (audioProvider === "lahajati") {
+        logger?.info("🔄 [generateAudioData] Falling back to ElevenLabs...");
+        const { generateAudio } = await import("../tools/generateAudio");
+        
+        const fallbackResult = await generateAudio.execute({
+          context: {
+            text,
+            title,
+          },
+          mastra: undefined,
+          runtimeContext: undefined as any,
+        });
+        
+        if (fallbackResult.success && fallbackResult.audioUrl && fallbackResult.audioBase64 && fallbackResult.filename) {
+          logger?.info("✅ [generateAudioData] Fallback to ElevenLabs successful");
+          return {
+            audioUrl: fallbackResult.audioUrl,
+            audioBase64: fallbackResult.audioBase64,
+            filename: fallbackResult.filename,
+          };
+        }
+      }
+      
       return { audioUrl: "", audioBase64: "", filename: "" };
     }
   } catch (error) {
