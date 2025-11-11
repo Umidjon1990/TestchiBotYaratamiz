@@ -224,7 +224,8 @@ ${levelDifficulty[level as keyof typeof levelDifficulty] || levelDifficulty["B1"
           podcastData.podcastContent,
           podcastData.podcastTitle,
           audioProvider,
-          logger
+          logger,
+          mastra
         );
       } else {
         logger?.info("📖 [Step 1] Skipping audio generation - reading mode is text-only");
@@ -253,7 +254,8 @@ async function generateAudioData(
   text: string,
   title: string,
   audioProvider: string,
-  logger: any
+  logger: any,
+  mastra: any
 ): Promise<{ audioUrl: string; audioBase64: string; filename: string }> {
   try {
     logger?.info("🎧 [generateAudioData] Starting audio generation...", { audioProvider });
@@ -269,7 +271,7 @@ async function generateAudioData(
           text,
           title,
         },
-        mastra: undefined,
+        mastra,
         runtimeContext: undefined as any,
       });
     } else {
@@ -281,7 +283,7 @@ async function generateAudioData(
           text,
           title,
         },
-        mastra: undefined,
+        mastra,
         runtimeContext: undefined as any,
       });
     }
@@ -310,7 +312,7 @@ async function generateAudioData(
             text,
             title,
           },
-          mastra: undefined,
+          mastra,
           runtimeContext: undefined as any,
         });
         
