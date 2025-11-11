@@ -915,13 +915,158 @@ export function registerTelegramAdminTriggers() {
           // Handle /start command and other messages
           if (payload.message) {
             const message = payload.message;
-            
-            // Ignore non-text messages (polls, media, etc.)
+            const chatId = message.chat.id;
+
+            // ================================================
+            // HANDLE CUSTOM CONTENT UPLOAD (Audio + Caption)
+            // ================================================
+            if ((message.audio || message.voice) && message.caption) {
+              logger?.info("🎵 [Telegram Admin] Audio + caption received for custom content");
+
+              const caption = message.caption;
+              const audioFile = message.audio || message.voice;
+              const audioFileId = audioFile.file_id;
+
+              // Send processing message
+              await fetch(
+                `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    chat_id: chatId,
+                    text: `⏳ *Обрабатываем...*\n\n📝 Текст получен\n🎵 Аудио получено\n\nГенерируем 5 вопросов из текста...`,
+                    parse_mode: "Markdown",
+                  }),
+                }
+              );
+
+              // Process in background
+              (async () => {
+                try {
+                  // Import tool
+                  const { generateQuestionsFromText } = await import("../mastra/tools/generateQuestionsFromText");
+                  const { demoRepository } = await import("../mastra/storage/demoRepository");
+
+                  // Generate questions from text
+                  logger?.info("📝 [Custom Content] Generating questions from text...");
+                  const questionsResult = await generateQuestionsFromText.execute({
+                    context: {
+                      text: caption,
+                      level: "B1",
+                    },
+                    mastra,
+                    runtimeContext: undefined as any,
+                  });
+
+                  if (!questionsResult.success || questionsResult.questions.length === 0) {
+                    throw new Error("Failed to generate questions");
+                  }
+
+                  // Download audio from Telegram
+                  logger?.info("⬇️ [Custom Content] Downloading audio...");
+                  const fileInfoResponse = await fetch(
+                    `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${audioFileId}`
+                  );
+                  const fileInfo = await fileInfoResponse.json();
+                  const filePath = fileInfo.result.file_path;
+
+                  const audioResponse = await fetch(
+                    `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${filePath}`
+                  );
+                  const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
+
+                  // Upload to App Storage
+                  const { appStorageClient } = await import("../mastra/storage/appStorageClient");
+                  const { Readable } = await import("stream");
+                  const audioStream = Readable.from(audioBuffer);
+                  
+                  const title = caption.substring(0, 50) + (caption.length > 50 ? "..." : "");
+                  const { url: audioUrl, filename } = await appStorageClient.uploadAudioStream(
+                    audioStream,
+                    title,
+                    logger
+                  );
+
+                  // Save to database
+                  logger?.info("💾 [Custom Content] Saving to database...");
+                  const customContent = await demoRepository.createCustomContent(
+                    {
+                      title,
+                      textContent: caption,
+                      audioFileId,
+                      audioUrl,
+                      audioStoragePath: filename,
+                      questions: questionsResult.questions,
+                      level: "B1",
+                    },
+                    logger
+                  );
+
+                  // Send preview to admin
+                  logger?.info("📧 [Custom Content] Sending preview to admin...");
+                  const previewText = `🎯 *Yangi custom content tayyor!*\n\n` +
+                    `📖 *Sarlavha:* ${title}\n\n` +
+                    `📝 *Matn:*\n${caption.substring(0, 200)}${caption.length > 200 ? "..." : ""}\n\n` +
+                    `❓ *Savollar:* ${questionsResult.questions.length} ta\n\n` +
+                    `Yuborishni tasdiqlaysizmi?`;
+
+                  await fetch(
+                    `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendAudio`,
+                    {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        chat_id: chatId,
+                        audio: audioFileId,
+                        caption: previewText,
+                        parse_mode: "Markdown",
+                        reply_markup: {
+                          inline_keyboard: [
+                            [
+                              {
+                                text: "✅ Yuborish",
+                                callback_data: `approve_custom_${customContent.slug}`,
+                              },
+                              {
+                                text: "❌ Rad etish",
+                                callback_data: `reject_custom_${customContent.slug}`,
+                              },
+                            ],
+                          ],
+                        },
+                      }),
+                    }
+                  );
+
+                  logger?.info("✅ [Custom Content] Preview sent successfully!");
+                } catch (error: any) {
+                  logger?.error("❌ [Custom Content] Error processing upload", {
+                    error: error?.message,
+                  });
+
+                  await fetch(
+                    `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+                    {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        chat_id: chatId,
+                        text: `❌ Хато: ${error?.message}`,
+                      }),
+                    }
+                  );
+                }
+              })();
+
+              return c.json({ ok: true });
+            }
+
+            // Ignore non-text messages (polls, media without caption, etc.)
             if (!message.text) {
               return c.json({ ok: true });
             }
 
-            const chatId = message.chat.id;
             const text = message.text;
 
             // Only respond to /start command

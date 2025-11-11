@@ -332,4 +332,134 @@ export const demoRepository = {
       throw error;
     }
   },
+
+  /**
+   * Create a new custom content (user-uploaded text + audio)
+   */
+  async createCustomContent(input: {
+    title: string;
+    textContent: string;
+    audioFileId?: string;
+    audioUrl: string;
+    audioStoragePath?: string;
+    questions: Array<{
+      question: string;
+      options: string[];
+      correctAnswer: number;
+      explanation: string;
+    }>;
+    level?: string;
+  }, logger?: any) {
+    logger?.info("📝 [DemoRepository] Creating new custom content", {
+      title: input.title,
+    });
+
+    try {
+      const slug = `custom-${Date.now()}-${randomBytes(4).toString("hex")}`;
+
+      const [newContent] = await db
+        .insert(schema.customContent)
+        .values({
+          slug,
+          title: input.title,
+          textContent: input.textContent,
+          audioFileId: input.audioFileId || null,
+          audioUrl: input.audioUrl,
+          audioStoragePath: input.audioStoragePath || null,
+          questions: input.questions,
+          level: input.level || "B1",
+          status: "draft",
+        })
+        .returning();
+
+      logger?.info("✅ [DemoRepository] Custom content created", {
+        id: newContent.id,
+        slug: newContent.slug,
+      });
+
+      return newContent;
+    } catch (error) {
+      logger?.error("❌ [DemoRepository] Error creating custom content", { error });
+      throw error;
+    }
+  },
+
+  /**
+   * Get custom content by slug
+   */
+  async getCustomContentBySlug(slug: string, logger?: any) {
+    logger?.info("🔍 [DemoRepository] Fetching custom content by slug", { slug });
+
+    try {
+      const [content] = await db
+        .select()
+        .from(schema.customContent)
+        .where(eq(schema.customContent.slug, slug))
+        .limit(1);
+
+      if (content) {
+        logger?.info("✅ [DemoRepository] Custom content found", { slug });
+      } else {
+        logger?.warn("⚠️ [DemoRepository] Custom content not found", { slug });
+      }
+
+      return content || null;
+    } catch (error) {
+      logger?.error("❌ [DemoRepository] Error fetching custom content", { error });
+      throw error;
+    }
+  },
+
+  /**
+   * Update custom content status (draft → approved → posted)
+   */
+  async updateCustomContentStatus(slug: string, status: string, logger?: any) {
+    logger?.info("📝 [DemoRepository] Updating custom content status", { slug, status });
+
+    try {
+      const [updated] = await db
+        .update(schema.customContent)
+        .set({ 
+          status,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.customContent.slug, slug))
+        .returning();
+
+      if (updated) {
+        logger?.info("✅ [DemoRepository] Custom content status updated", {
+          slug,
+          newStatus: status,
+        });
+      } else {
+        logger?.warn("⚠️ [DemoRepository] Custom content not found for update", { slug });
+      }
+
+      return updated || null;
+    } catch (error) {
+      logger?.error("❌ [DemoRepository] Error updating custom content status", { error });
+      throw error;
+    }
+  },
+
+  /**
+   * List all pending custom content (for admin review)
+   */
+  async listPendingCustomContent(logger?: any) {
+    logger?.info("📋 [DemoRepository] Listing pending custom content");
+
+    try {
+      const content = await db
+        .select()
+        .from(schema.customContent)
+        .where(eq(schema.customContent.status, "draft"))
+        .orderBy(schema.customContent.createdAt);
+
+      logger?.info("✅ [DemoRepository] Pending custom content listed", { count: content.length });
+      return content;
+    } catch (error) {
+      logger?.error("❌ [DemoRepository] Error listing pending custom content", { error });
+      throw error;
+    }
+  },
 };
