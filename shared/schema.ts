@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, jsonb, varchar, serial } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, jsonb, varchar, serial, integer } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 /**
@@ -67,5 +67,22 @@ export const customContent = pgTable("custom_content", {
   status: varchar("status", { length: 50 }).notNull().default("draft"), // draft, approved, rejected, posted
   level: varchar("level", { length: 5 }).default("B1"), // A1, A2, B1, B2
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+/**
+ * Voice Rotation State Table
+ * Singleton table to track which Lahajati clone voice was used last
+ * Enables round-robin rotation between multiple clone voices (Umidjon, Abdurayimov, etc.)
+ */
+export const voiceRotationState = pgTable("voice_rotation_state", {
+  id: serial("id").primaryKey(),
+  lastUsedVoiceIndex: integer("last_used_voice_index").notNull().default(0),
+  cachedVoices: jsonb("cached_voices").$type<
+    Array<{
+      id_voice: string;
+      display_name: string;
+    }>
+  >(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

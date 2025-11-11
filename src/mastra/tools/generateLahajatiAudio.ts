@@ -1,6 +1,7 @@
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import { appStorageClient } from "../storage/appStorageClient";
+import { demoRepository } from "../storage/demoRepository";
 import { Readable } from "stream";
 
 /**
@@ -51,13 +52,18 @@ export const generateLahajatiAudio = createTool({
         };
       }
 
-      // Fetch user's cloned voices from Lahajati API
-      logger?.info("📡 [generateLahajatiAudio] Fetching user's cloned voices");
+      // Get current voice rotation state from database
+      logger?.info("🔄 [generateLahajatiAudio] Fetching voice rotation state");
+      const rotationState = await demoRepository.getVoiceRotationState(logger);
       
       let selectedVoiceId: string | null = null;
       let selectedVoiceName: string = "Unknown";
+      let clonedVoices: Array<{ id_voice: string; display_name: string }> = [];
       
       try {
+        // Fetch user's cloned voices from Lahajati API
+        logger?.info("📡 [generateLahajatiAudio] Fetching user's cloned voices from Lahajati API");
+        
         const voicesResponse = await fetch("https://lahajati.ai/api/v1/voices-absolute-control?per_page=50", {
           method: "GET",
           headers: {
@@ -71,35 +77,79 @@ export const generateLahajatiAudio = createTool({
           const allVoices = voicesData?.data || [];
           
           // Filter to get only cloned voices (user's own voices)
-          const clonedVoices = allVoices.filter((v: any) => v.is_cloned === true);
+          clonedVoices = allVoices
+            .filter((v: any) => v.is_cloned === true)
+            .map((v: any) => ({
+              id_voice: v.id_voice,
+              display_name: v.display_name,
+            }));
           
           if (clonedVoices.length > 0) {
-            // Use first cloned voice (user's voice)
-            const userVoice = clonedVoices[0];
-            selectedVoiceId = userVoice.id_voice;
-            selectedVoiceName = userVoice.display_name;
+            logger?.info("✅ [generateLahajatiAudio] Found cloned voices", {
+              totalClonedVoices: clonedVoices.length,
+              voices: clonedVoices.map(v => v.display_name).join(", "),
+            });
             
-            logger?.info("✅ [generateLahajatiAudio] Using user's cloned voice", {
+            // Calculate next voice index (round-robin rotation)
+            const currentIndex = rotationState.lastUsedVoiceIndex || 0;
+            const nextIndex = (currentIndex + 1) % clonedVoices.length;
+            
+            // Select next voice in rotation
+            const selectedVoice = clonedVoices[nextIndex];
+            selectedVoiceId = selectedVoice.id_voice;
+            selectedVoiceName = selectedVoice.display_name;
+            
+            logger?.info("🎤 [generateLahajatiAudio] Voice selected via rotation", {
               voiceId: selectedVoiceId,
               voiceName: selectedVoiceName,
-              totalClonedVoices: clonedVoices.length,
+              currentIndex,
+              nextIndex,
+              totalVoices: clonedVoices.length,
             });
+            
+            // Update rotation state for next run
+            await demoRepository.updateVoiceRotationState(nextIndex, clonedVoices, logger);
+            
           } else {
             logger?.warn("⚠️ [generateLahajatiAudio] No cloned voices found, using default");
-            // Use default voice ID (user's known cloned voice)
-            selectedVoiceId = "rXBH9gG2s34pMDKFrPXcrKDf"; // Umidjon
+            selectedVoiceId = "rXBH9gG2s34pMDKFrPXcrKDf"; // Umidjon (fallback)
+            selectedVoiceName = "Umidjon";
+          }
+        } else {
+          logger?.warn("⚠️ [generateLahajatiAudio] API request failed, using cached voices");
+          
+          // Use cached voices from database if API fails
+          const cachedVoices = rotationState.cachedVoices || [];
+          if (cachedVoices.length > 0) {
+            const currentIndex = rotationState.lastUsedVoiceIndex || 0;
+            const nextIndex = (currentIndex + 1) % cachedVoices.length;
+            
+            const selectedVoice = cachedVoices[nextIndex];
+            selectedVoiceId = selectedVoice.id_voice;
+            selectedVoiceName = selectedVoice.display_name;
+            
+            logger?.info("🎤 [generateLahajatiAudio] Using cached voice", {
+              voiceId: selectedVoiceId,
+              voiceName: selectedVoiceName,
+            });
+            
+            await demoRepository.updateVoiceRotationState(nextIndex, undefined, logger);
+          } else {
+            selectedVoiceId = "rXBH9gG2s34pMDKFrPXcrKDf"; // Umidjon (fallback)
             selectedVoiceName = "Umidjon";
           }
         }
       } catch (error) {
-        logger?.warn("⚠️ [generateLahajatiAudio] Error fetching voices, using default", { error });
+        logger?.warn("⚠️ [generateLahajatiAudio] Error in voice rotation logic, using fallback", { error });
+        selectedVoiceId = "rXBH9gG2s34pMDKFrPXcrKDf"; // Umidjon (fallback)
+        selectedVoiceName = "Umidjon";
       }
 
       // Final fallback to known cloned voice
       if (!selectedVoiceId) {
         selectedVoiceId = "rXBH9gG2s34pMDKFrPXcrKDf"; // Umidjon (user's cloned voice)
         selectedVoiceName = "Umidjon";
-        logger?.info("🎤 [generateLahajatiAudio] Using fallback cloned voice", {
+        logger?.info("🎤 [generateLahajatiAudio] Using final fallback voice", {
           voiceId: selectedVoiceId,
           voiceName: selectedVoiceName,
         });

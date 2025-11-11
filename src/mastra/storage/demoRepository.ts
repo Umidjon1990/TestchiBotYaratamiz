@@ -462,4 +462,83 @@ export const demoRepository = {
       throw error;
     }
   },
+
+  /**
+   * Get current voice rotation state (singleton row)
+   */
+  async getVoiceRotationState(logger?: any) {
+    logger?.info("🎤 [DemoRepository] Fetching voice rotation state");
+
+    try {
+      const [state] = await db
+        .select()
+        .from(schema.voiceRotationState)
+        .limit(1);
+
+      if (!state) {
+        logger?.info("📝 [DemoRepository] No rotation state found, creating default");
+        const [newState] = await db
+          .insert(schema.voiceRotationState)
+          .values({
+            lastUsedVoiceIndex: 0,
+            cachedVoices: [],
+            updatedAt: new Date(),
+          })
+          .returning();
+        return newState;
+      }
+
+      logger?.info("✅ [DemoRepository] Voice rotation state found", {
+        lastIndex: state.lastUsedVoiceIndex,
+        voicesCount: state.cachedVoices?.length || 0,
+      });
+
+      return state;
+    } catch (error) {
+      logger?.error("❌ [DemoRepository] Error fetching voice rotation state", { error });
+      throw error;
+    }
+  },
+
+  /**
+   * Update voice rotation state with next voice index and cache voices
+   */
+  async updateVoiceRotationState(
+    nextIndex: number,
+    cachedVoices?: Array<{ id_voice: string; display_name: string }>,
+    logger?: any
+  ) {
+    logger?.info("🔄 [DemoRepository] Updating voice rotation state", {
+      nextIndex,
+      voicesCount: cachedVoices?.length || 0,
+    });
+
+    try {
+      const currentState = await this.getVoiceRotationState(logger);
+
+      const updateData: any = {
+        lastUsedVoiceIndex: nextIndex,
+        updatedAt: new Date(),
+      };
+
+      if (cachedVoices) {
+        updateData.cachedVoices = cachedVoices;
+      }
+
+      const [updated] = await db
+        .update(schema.voiceRotationState)
+        .set(updateData)
+        .where(eq(schema.voiceRotationState.id, currentState.id))
+        .returning();
+
+      logger?.info("✅ [DemoRepository] Voice rotation state updated", {
+        newIndex: nextIndex,
+      });
+
+      return updated;
+    } catch (error) {
+      logger?.error("❌ [DemoRepository] Error updating voice rotation state", { error });
+      throw error;
+    }
+  },
 };
