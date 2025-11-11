@@ -51,13 +51,14 @@ export const generateLahajatiAudio = createTool({
         };
       }
 
-      // Fetch available Absolute Control voices from Lahajati API
-      logger?.info("📡 [generateLahajatiAudio] Fetching Absolute Control voices");
+      // Fetch user's cloned voices from Lahajati API
+      logger?.info("📡 [generateLahajatiAudio] Fetching user's cloned voices");
       
       let selectedVoiceId: string | null = null;
+      let selectedVoiceName: string = "Unknown";
       
       try {
-        const voicesResponse = await fetch("https://lahajati.ai/api/v1/voices-absolute-control", {
+        const voicesResponse = await fetch("https://lahajati.ai/api/v1/voices-absolute-control?per_page=50", {
           method: "GET",
           headers: {
             "Authorization": `Bearer ${lahajatiApiKey}`,
@@ -67,35 +68,41 @@ export const generateLahajatiAudio = createTool({
 
         if (voicesResponse.ok) {
           const voicesData = await voicesResponse.json();
-          const voices = voicesData?.data || [];
+          const allVoices = voicesData?.data || [];
           
-          if (voices.length > 0) {
-            // Randomly select a voice from available Absolute Control voices
-            const randomVoice = voices[Math.floor(Math.random() * voices.length)];
-            selectedVoiceId = randomVoice.id_voice;
+          // Filter to get only cloned voices (user's own voices)
+          const clonedVoices = allVoices.filter((v: any) => v.is_cloned === true);
+          
+          if (clonedVoices.length > 0) {
+            // Use first cloned voice (user's voice)
+            const userVoice = clonedVoices[0];
+            selectedVoiceId = userVoice.id_voice;
+            selectedVoiceName = userVoice.display_name;
             
-            logger?.info("✅ [generateLahajatiAudio] Voice selected from Absolute Control", {
+            logger?.info("✅ [generateLahajatiAudio] Using user's cloned voice", {
               voiceId: selectedVoiceId,
-              voiceName: randomVoice.display_name,
-              gender: randomVoice.gender,
-              totalAvailable: voices.length,
+              voiceName: selectedVoiceName,
+              totalClonedVoices: clonedVoices.length,
             });
+          } else {
+            logger?.warn("⚠️ [generateLahajatiAudio] No cloned voices found, using default");
+            // Use default voice ID (user's known cloned voice)
+            selectedVoiceId = "rXBH9gG2s34pMDKFrPXcrKDf"; // Umidjon
+            selectedVoiceName = "Umidjon";
           }
         }
       } catch (error) {
-        logger?.warn("⚠️ [generateLahajatiAudio] Error fetching Absolute Control voices", { error });
+        logger?.warn("⚠️ [generateLahajatiAudio] Error fetching voices, using default", { error });
       }
 
-      // Fallback to hardcoded voices if API call fails
+      // Final fallback to known cloned voice
       if (!selectedVoiceId) {
-        logger?.warn("⚠️ [generateLahajatiAudio] Using fallback voice IDs");
-        const fallbackVoiceIds = [
-          "jUF5KnZcKN9kJxvxtRJCzTlj", // أميمة (Amima) - female
-          "OZuzezjpgHq0hkOVaqrnde3v", // رزاق (Razaq) - male
-          "xKcZnBxPAaPGv5lHHVErx1xT", // نرمين (Narmin) - female
-          "nDM7BdvJn4eYlchiz4EgPyZi", // عصوم (Asum) - male
-        ];
-        selectedVoiceId = fallbackVoiceIds[Math.floor(Math.random() * fallbackVoiceIds.length)];
+        selectedVoiceId = "rXBH9gG2s34pMDKFrPXcrKDf"; // Umidjon (user's cloned voice)
+        selectedVoiceName = "Umidjon";
+        logger?.info("🎤 [generateLahajatiAudio] Using fallback cloned voice", {
+          voiceId: selectedVoiceId,
+          voiceName: selectedVoiceName,
+        });
       }
 
       // Fetch performance styles and dialects for Absolute Control
@@ -212,7 +219,7 @@ export const generateLahajatiAudio = createTool({
         audioBase64,
         duration: estimatedDuration,
         success: true,
-        message: `Audio generated successfully via Lahajati.ai (${selectedVoiceId}) and stored in App Storage`,
+        message: `Audio generated successfully via Lahajati.ai using cloned voice "${selectedVoiceName}" and stored in App Storage`,
         filename,
         voiceId: String(selectedVoiceId),
       };
