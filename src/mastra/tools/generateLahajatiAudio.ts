@@ -53,15 +53,16 @@ export const generateLahajatiAudio = createTool({
 
       // Lahajati public voice library IDs (from web interface)
       // These are free voices available in the Voice Library
+      // Note: Lahajati API expects voice IDs as strings
       const publicVoiceIds = [
-        1408, // بدر (Badr) - male
-        1409, // جابر (Jabir) - male
-        1395, // عازم (Azim) - male
-        1398, // فرح (Farah) - female
-        1410, // منيرة (Munira) - female
-        1411, // رحمة (Rahma) - female
-        1405, // بهجت (Bahjat) - male
-        1402, // موسى (Musa) - male
+        "1408", // بدر (Badr) - male
+        "1409", // جابر (Jabir) - male
+        "1395", // عازم (Azim) - male
+        "1398", // فرح (Farah) - female
+        "1410", // منيرة (Munira) - female
+        "1411", // رحمة (Rahma) - female
+        "1405", // بهجت (Bahjat) - male
+        "1402", // موسى (Musa) - male
       ];
 
       // Randomly select a voice from the public library
