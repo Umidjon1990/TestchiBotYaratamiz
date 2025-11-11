@@ -134,6 +134,15 @@ Preferred communication style: Simple, everyday language.
 - **Telegram**: Webhook integration for bot messages (via webhook endpoints)
 - **Exa** (`exa-js`): Search/research capabilities
 - **WhatsApp**: Business API integration for chat bots
+- **Lahajati** (Arabic TTS): Arabic text-to-speech service with professional voice cloning
+  - **Voice**: Umidjon clone voice (ID: `rXBH9gG2s34pMDKFrPXcrKDf`) - hardcoded for reliability
+  - **Style**: Radio news reader (professional, clear)
+  - **Dialect**: Modern Standard Arabic
+  - **Fallback**: Auto-switches to ElevenLabs if Lahajati API fails
+- **ElevenLabs** (`@elevenlabs/elevenlabs-js`): High-quality multilingual TTS with Arabic support
+  - **Voice**: "Adam" (pre-made voice)
+  - **Model**: eleven_turbo_v2_5 (optimized for speed and quality)
+  - **Primary use**: Fallback provider when Lahajati unavailable
 
 ## Database & Storage
 
