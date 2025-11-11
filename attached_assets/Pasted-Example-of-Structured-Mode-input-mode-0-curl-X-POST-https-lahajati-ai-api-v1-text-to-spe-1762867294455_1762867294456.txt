@@ -1,0 +1,226 @@
+Example of Structured Mode (`input_mode: "0"`)
+curl -X POST "https://lahajati.ai/api/v1/text-to-speech-absolute-control" \
+-H "Authorization: Bearer YOUR_API_KEY" \
+-H "Content-Type: application/json" \
+-H "Accept: audio/mpeg" \
+-d '{
+  "text": "هذا اختبار للوضع المنظم.",
+  "id_voice": "ac_voice_xyz789",
+  "input_mode": "0",
+  "performance_id": "perf_1",
+  "dialect_id": "dialect_10"
+}' \
+--output structured_output.mp3
+Example of Custom Prompt Mode (`input_mode: "1"`)
+curl -X POST "https://lahajati.ai/api/v1/text-to-speech-absolute-control" \
+-H "Authorization: Bearer YOUR_API_KEY" \
+-H "Content-Type: application/json" \
+-H "Accept: audio/mpeg" \
+-d '{
+  "text": "هذا اختبار للتوجيه المخصص.",
+  "id_voice": "ac_voice_xyz789",
+  "input_mode": "1",
+  "custom_prompt_text": "اقرأ النص التالي بصوت عالٍ وواضح، كأنك تقدم نشرة إخبارية عاجلة."
+}' \
+--output custom_prompt_output.mp3
+Response Examples
+Successful Response (200 OK)
+
+HTTP/1.1 200 OK
+Content-Type: audio/mpeg
+Content-Length: 98765
+
+[... raw binary audio data ...]
+Input validation failed. Make sure the required parameters for each `input_mode` are present.
+
+{
+    "success": false,
+    "errors": {
+        "input_mode": [
+            "The input mode field is required."
+        ],
+        "custom_prompt_text": [
+            "The custom prompt text field is required when input mode is 1."
+        ]
+    }
+}
+Convert Speech with Absolute Control
+cURL
+PHP (Laravel HTTP)
+JavaScript (Fetch)
+Python (Requests)
+curl -X POST "https://lahajati.ai/api/v1/speech-to-speech-absolute-control" \
+-H "Authorization: Bearer YOUR_API_KEY" \
+-F "audio_file=@/path/to/audio.mp3" \
+-F "id_voice=voice_abc123" \ 
+-F "stability=75" \
+-F "similarity_boost=85" \
+-F "style=25" \
+--output converted_audio.mp3
+Response Examples
+Successful Response (200 OK)
+
+HTTP/1.1 200 OK
+Content-Type: audio/mpeg
+Content-Length: 156234
+
+[... raw binary audio data ...]
+Input validation failed. Make sure the required parameters for each `input_mode` are present.
+
+{
+    "success": false,
+    "errors": {
+        "audio_file": [
+            "The audio file field is required."
+        ],
+        "stability": [
+            "The stability must be between 0 and 100."
+        ]
+    }
+}
+Chat Completions
+cURL
+PHP (Laravel HTTP)
+JavaScript (Fetch)
+Python (Requests)
+Basic Example
+curl -X POST "https://lahajati.ai/api/v1/chat/completions" \
+-H "Authorization: Bearer YOUR_API_KEY" \
+-H "Content-Type: application/json" \
+-d '{
+  "message": "ما هي أفضل طريقة لتعلم البرمجة؟",
+  "model": "lahajati_llm_basic",
+  "temperature": 1.0
+}'
+Example with Custom Prompt
+curl -X POST "https://lahajati.ai/api/v1/chat/completions" \
+-H "Authorization: Bearer YOUR_API_KEY" \
+-H "Content-Type: application/json" \
+-d '{
+  "message": "اشرح لي مفهوم الذكاء الاصطناعي",
+  "custom_prompt_message": "أنت خبير في التقنية، أجب بأسلوب تعليمي مبسط مناسب للمبتدئين",
+  "model": "lahajati_llm_pro",
+  "temperature": 0.7
+}'
+Response Examples
+Successful Response (200 OK) (200 OK)
+
+{
+    "status": true,
+    "message": "تعلم البرمجة يتطلب الصبر والممارسة المستمرة. أنصحك بالبدء بلغة برمجة مناسبة للمبتدئين مثل Python، ثم التدرب على مشاريع صغيرة وزيادة التعقيد تدريجياً. المصادر التعليمية المجانية متوفرة بكثرة على الإنترنت."
+}
+You do not have a subscription package to use this feature. Subscribe to use the feature.
+
+{
+    "success": false,
+    "message": "You do not have a subscription package to use this feature. Subscribe to use the feature."
+}
+Create Cloned Voice
+cURL
+PHP (Laravel HTTP)
+JavaScript (Fetch)
+Python (Requests)
+curl -X POST "https://lahajati.ai/api/v1/voices/cloned" \
+-H "Authorization: Bearer YOUR_API_KEY" \
+-F "voice_name=My Cloned Voice" \
+-F "gender=1" \
+-F "model=lahajati-neural" \
+-F "audio_file=@/path/to/voice_sample.mp3" \
+-F "enhance_audio=true" \
+-F "voice_tags=professional,calm"
+Response Examples
+Successful Response (201 Created) (201 Created)
+
+{
+    "success": true,
+    "voice": {
+        "id_voice": "lvc_abc123def456ghi789",
+        "name": "My Cloned Voice",
+        "gender": "male",
+        "tags": "professional,calm",
+        "created_at": "2024-01-15T10:30:00.000000Z"
+    }
+}
+Update Cloned Voice
+curl -X POST "https://lahajati.ai/api/v1/voices/cloned/{id_voice}" \
+-H "Authorization: Bearer YOUR_API_KEY" \
+-H "Content-Type: application/json" \
+-d '{
+    "voice_name": "Updated Voice Name",
+    "gender": 2
+}'
+Response Examples
+{
+    "success": true,
+    "voice": {
+        "id_voice": "lvc_abc123def456ghi789",
+        "name": "Updated Voice Name", 
+        "gender": "female",
+        "tags": "professional,calm",
+        "updated_at": "2024-01-15T11:30:00.000000Z"
+    }
+}
+Delete Cloned Voice
+curl -X DELETE "https://lahajati.ai/api/v1/voices/cloned/{id_voice}" \
+-H "Authorization: Bearer YOUR_API_KEY"
+Response Examples
+{
+    "success": true,
+    "message": "Cloned voice deleted successfully."
+}
+Get Absolute Control Voices
+curl -X GET "https://lahajati.ai/api/v1/voices-absolute-control" \
+-H "Authorization: Bearer YOUR_API_KEY" \
+-H "Accept: application/json"
+Response Examples
+{
+  "success": true,
+  "data": [
+    {
+      "id_voice": "ac_voice_xyz789",
+      "display_name": "صوت تحكم مطلق - أحمد",
+      "gender": "male",
+      "is_cloned": false,
+      "average_rating": null
+    }
+  ],
+  "meta": { /* ... pagination info ... */ }
+}
+Get Performance Styles
+curl -X GET "https://lahajati.ai/api/v1/performance-absolute-control" \
+-H "Authorization: Bearer YOUR_API_KEY" \
+-H "Accept: application/json"
+Response Examples
+{
+  "success": true,
+  "data": [
+    {
+      "performance_id": "perf_1",
+      "display_name": "أداء درامي"
+    },
+    {
+      "performance_id": "perf_2",
+      "display_name": "أداء إخباري"
+    }
+  ],
+  "meta": { /* ... pagination info ... */ }
+}
+Get Dialects
+curl -X GET "https://lahajati.ai/api/v1/dialect-absolute-control" \
+-H "Authorization: Bearer YOUR_API_KEY" \
+-H "Accept: application/json"
+Response Examples
+{
+  "success": true,
+  "data": [
+    {
+      "dialect_id": "dialect_10",
+      "display_name": "اللهجة المصرية"
+    },
+    {
+      "dialect_id": "dialect_12",
+      "display_name": "اللهجة السعودية (نجدية)"
+    }
+  ],
+  "meta": { /* ... pagination info ... */ }
+}

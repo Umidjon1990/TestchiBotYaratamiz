@@ -51,30 +51,60 @@ export const generateLahajatiAudio = createTool({
         };
       }
 
-      // Lahajati public voice library IDs (from web interface)
-      // These are free voices available in the Voice Library
-      // Note: Lahajati API expects voice IDs as strings
-      const publicVoiceIds = [
-        "1408", // بدر (Badr) - male
-        "1409", // جابر (Jabir) - male
-        "1395", // عازم (Azim) - male
-        "1398", // فرح (Farah) - female
-        "1410", // منيرة (Munira) - female
-        "1411", // رحمة (Rahma) - female
-        "1405", // بهجت (Bahjat) - male
-        "1402", // موسى (Musa) - male
-      ];
+      // Fetch available Absolute Control voices from Lahajati API
+      logger?.info("📡 [generateLahajatiAudio] Fetching Absolute Control voices");
+      
+      let selectedVoiceId: string | null = null;
+      
+      try {
+        const voicesResponse = await fetch("https://lahajati.ai/api/v1/voices-absolute-control", {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${lahajatiApiKey}`,
+            "Accept": "application/json",
+          },
+        });
 
-      // Randomly select a voice from the public library
-      const selectedVoiceId = publicVoiceIds[Math.floor(Math.random() * publicVoiceIds.length)];
+        if (voicesResponse.ok) {
+          const voicesData = await voicesResponse.json();
+          const voices = voicesData?.data || [];
+          
+          if (voices.length > 0) {
+            // Randomly select a voice from available Absolute Control voices
+            const randomVoice = voices[Math.floor(Math.random() * voices.length)];
+            selectedVoiceId = randomVoice.id_voice;
+            
+            logger?.info("✅ [generateLahajatiAudio] Voice selected from Absolute Control", {
+              voiceId: selectedVoiceId,
+              voiceName: randomVoice.display_name,
+              gender: randomVoice.gender,
+              totalAvailable: voices.length,
+            });
+          }
+        }
+      } catch (error) {
+        logger?.warn("⚠️ [generateLahajatiAudio] Error fetching Absolute Control voices", { error });
+      }
+
+      // Fallback to hardcoded voices if API call fails
+      if (!selectedVoiceId) {
+        logger?.warn("⚠️ [generateLahajatiAudio] Using fallback voice IDs");
+        const fallbackVoiceIds = [
+          "jUF5KnZcKN9kJxvxtRJCzTlj", // أميمة (Amima) - female
+          "OZuzezjpgHq0hkOVaqrnde3v", // رزاق (Razaq) - male
+          "xKcZnBxPAaPGv5lHHVErx1xT", // نرمين (Narmin) - female
+          "nDM7BdvJn4eYlchiz4EgPyZi", // عصوم (Asum) - male
+        ];
+        selectedVoiceId = fallbackVoiceIds[Math.floor(Math.random() * fallbackVoiceIds.length)];
+      }
 
       logger?.info("📡 [generateLahajatiAudio] Calling Lahajati TTS API", {
         voiceId: selectedVoiceId,
         textLength: context.text.length,
       });
 
-      // Call Lahajati Text-to-Speech Pro API
-      const response = await fetch("https://lahajati.ai/api/v1/text-to-speech-pro", {
+      // Call Lahajati Text-to-Speech Absolute Control API
+      const response = await fetch("https://lahajati.ai/api/v1/text-to-speech-absolute-control", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${lahajatiApiKey}`,
@@ -84,7 +114,7 @@ export const generateLahajatiAudio = createTool({
         body: JSON.stringify({
           text: context.text,
           id_voice: selectedVoiceId,
-          version: "lahajati_text_to_speech_pro_v1",
+          input_mode: "0", // Structured mode
         }),
       });
 
