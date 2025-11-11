@@ -51,25 +51,58 @@ export const generateLahajatiAudio = createTool({
         };
       }
 
-      // Lahajati voice IDs collection - randomly select different voices
-      const lahajatiVoices = [
-        "voice_ar_male_1",
-        "voice_ar_male_2",
-        "voice_ar_female_1",
-        "voice_ar_female_2",
-        "voice_ar_neutral_1",
-      ];
+      logger?.info("📡 [generateLahajatiAudio] Fetching available voices from Lahajati API");
 
-      // Randomly select a voice
-      const selectedVoiceId = lahajatiVoices[Math.floor(Math.random() * lahajatiVoices.length)];
+      // First, try to get available voices
+      let selectedVoiceId = null;
+      try {
+        const voicesResponse = await fetch("https://lahajati.ai/api/v1/voices", {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${lahajatiApiKey}`,
+            "Content-Type": "application/json",
+          },
+        });
 
-      logger?.info("📡 [generateLahajatiAudio] Calling Lahajati API", {
+        if (voicesResponse.ok) {
+          const voicesData = await voicesResponse.json();
+          logger?.info("📋 [generateLahajatiAudio] Available voices fetched", {
+            count: voicesData?.voices?.length || voicesData?.data?.length || 0,
+          });
+
+          // Get available voices and randomly select one
+          const voices = voicesData?.voices || voicesData?.data || [];
+          if (voices.length > 0) {
+            const randomVoice = voices[Math.floor(Math.random() * voices.length)];
+            selectedVoiceId = randomVoice?.id || randomVoice?.voice_id || randomVoice?.uuid;
+            logger?.info("✅ [generateLahajatiAudio] Voice selected", { voiceId: selectedVoiceId });
+          }
+        } else {
+          logger?.warn("⚠️ [generateLahajatiAudio] Could not fetch voices list, using default");
+        }
+      } catch (voiceError) {
+        logger?.warn("⚠️ [generateLahajatiAudio] Error fetching voices, using default", { voiceError });
+      }
+
+      // If no voice found, use a default/fallback (user should provide real voice ID)
+      if (!selectedVoiceId) {
+        logger?.warn("⚠️ [generateLahajatiAudio] No voice ID found, API call may fail");
+        return {
+          audioUrl: "",
+          audioBase64: "",
+          duration: 0,
+          success: false,
+          message: "No Lahajati voices available. Please check your Lahajati dashboard for available voice IDs and configure them.",
+        };
+      }
+
+      logger?.info("📡 [generateLahajatiAudio] Calling Lahajati TTS API", {
         voiceId: selectedVoiceId,
         textLength: context.text.length,
       });
 
-      // Call Lahajati API
-      const response = await fetch("https://lahajati.ai/api/v1/text-to-speech-absolute-control", {
+      // Call Lahajati Text-to-Speech Pro API
+      const response = await fetch("https://lahajati.ai/api/v1/text-to-speech-pro", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${lahajatiApiKey}`,
@@ -79,7 +112,7 @@ export const generateLahajatiAudio = createTool({
         body: JSON.stringify({
           text: context.text,
           id_voice: selectedVoiceId,
-          input_mode: "0", // Structured mode
+          version: "lahajati_text_to_speech_pro_v1",
         }),
       });
 
