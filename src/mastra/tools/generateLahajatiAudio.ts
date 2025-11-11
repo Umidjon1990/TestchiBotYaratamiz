@@ -98,8 +98,45 @@ export const generateLahajatiAudio = createTool({
         selectedVoiceId = fallbackVoiceIds[Math.floor(Math.random() * fallbackVoiceIds.length)];
       }
 
+      // Fetch performance styles and dialects for Absolute Control
+      let performanceId = "1795"; // Default: Radio news reader (professional, clear)
+      let dialectId = "1"; // Default: Modern Standard Arabic
+      
+      try {
+        // Try to fetch available performance styles
+        const perfResponse = await fetch("https://lahajati.ai/api/v1/performance-absolute-control", {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${lahajatiApiKey}`,
+            "Accept": "application/json",
+          },
+        });
+        
+        if (perfResponse.ok) {
+          const perfData = await perfResponse.json();
+          const performances = perfData?.data || [];
+          if (performances.length > 0) {
+            // Prefer educational/professional styles (news reader, clear speech)
+            const preferred = performances.find((p: any) => 
+              p.performance_id === 1795 || // Radio news reader
+              p.display_name?.includes("إخبار") || 
+              p.display_name?.includes("واضح")
+            );
+            performanceId = String(preferred?.performance_id || performances[0].performance_id);
+            logger?.info("📻 [generateLahajatiAudio] Performance style selected", {
+              performanceId,
+              name: preferred?.display_name || performances[0].display_name,
+            });
+          }
+        }
+      } catch (error) {
+        logger?.warn("⚠️ [generateLahajatiAudio] Using default performance style", { error });
+      }
+
       logger?.info("📡 [generateLahajatiAudio] Calling Lahajati TTS API", {
         voiceId: selectedVoiceId,
+        performanceId,
+        dialectId,
         textLength: context.text.length,
       });
 
@@ -115,6 +152,8 @@ export const generateLahajatiAudio = createTool({
           text: context.text,
           id_voice: selectedVoiceId,
           input_mode: "0", // Structured mode
+          performance_id: performanceId,
+          dialect_id: dialectId,
         }),
       });
 
@@ -126,12 +165,13 @@ export const generateLahajatiAudio = createTool({
           error: errorText,
         });
 
+        // Return error to let workflow handle fallback to ElevenLabs
         return {
           audioUrl: "",
           audioBase64: "",
           duration: 0,
           success: false,
-          message: `Lahajati API error: ${response.status} ${response.statusText}`,
+          message: `Lahajati API error (${response.status}): ${errorText}. Workflow will fallback to ElevenLabs.`,
         };
       }
 
