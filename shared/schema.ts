@@ -43,3 +43,29 @@ export const demoRevisions = pgTable("demo_revisions", {
   editedBy: varchar("edited_by", { length: 255 }).notNull(), // admin telegram ID
   editedAt: timestamp("edited_at").defaultNow().notNull(),
 });
+
+/**
+ * Custom Content Table
+ * Stores user-uploaded content (text + audio) with AI-generated questions
+ */
+export const customContent = pgTable("custom_content", {
+  id: serial("id").primaryKey(),
+  slug: varchar("slug", { length: 255 }).notNull().unique(),
+  title: text("title").notNull(), // Content title (extracted from text or user provided)
+  textContent: text("text_content").notNull(), // The Arabic text content
+  audioFileId: text("audio_file_id"), // Telegram audio file ID (before upload)
+  audioUrl: text("audio_url").notNull(), // Public URL after upload to App Storage
+  audioStoragePath: text("audio_storage_path"), // Filename for App Storage downloads
+  questions: jsonb("questions").notNull().$type<
+    Array<{
+      question: string;
+      options: string[];
+      correctAnswer: number;
+      explanation: string;
+    }>
+  >(),
+  status: varchar("status", { length: 50 }).notNull().default("draft"), // draft, approved, rejected, posted
+  level: varchar("level", { length: 5 }).default("B1"), // A1, A2, B1, B2
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
