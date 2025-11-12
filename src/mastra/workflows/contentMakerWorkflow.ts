@@ -472,8 +472,8 @@ const sendAdminPreview = createStep({
       const demoUrl = `${process.env.REPLIT_DOMAINS?.split(',')[0] ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : 'http://localhost:5000'}/demo/${demo.slug}`;
       logger?.info("🌐 [Step 2] Demo URL generated", { demoUrl });
 
-      // Send full podcast content to admin
-      const fullContentMessage = `
+      // Send content message (Part 1: Title + Content + Demo URL)
+      const contentMessage = `
 📋 *المُحْتَوَى الجَدِيدُ جَاهِزٌ!*
 
 🎙️ *${inputData.podcastTitle}*
@@ -482,20 +482,9 @@ const sendAdminPreview = createStep({
 
 ${inputData.podcastContent}
 
-━━━━━━━━━━━━━━━━
-
-📊 *الاخْتِبَارَاتُ (${inputData.questions.length}):*
-
-${inputData.questions.map((q, i) => `
-*${i + 1}. ${q.question}*
-${q.options.map((opt, idx) => `${String.fromCharCode(65 + idx)}) ${opt}`).join('\n')}
-✅ الإجَابَةُ الصَّحِيحَةُ: ${String.fromCharCode(65 + q.correctAnswer)}
-💡 ${q.explanation}
-`).join('\n━━━━━━━━━━━━━━━━\n')}
+🔗 *رابط التجربة:* ${demoUrl}
 
 🎧 *الصَّوْتُ:* ${inputData.audioFilename ? "✅ جَاهِزٌ" : "⚠️ غَيْرُ جَاهِزٍ"}
-
-*يُرْجَى المُرَاجَعَةُ وَالتَّأْكِيدُ لِلنَّشْرِ فِي القَنَاةِ.*
       `.trim();
 
       const response = await fetch(
@@ -507,7 +496,44 @@ ${q.options.map((opt, idx) => `${String.fromCharCode(65 + idx)}) ${opt}`).join('
           },
           body: JSON.stringify({
             chat_id: adminChatId,
-            text: fullContentMessage,
+            text: contentMessage,
+            parse_mode: "Markdown",
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger?.error("❌ Failed to send content message", { status: response.status, error: errorText });
+        throw new Error(`Telegram API error: ${response.status}`);
+      }
+
+      logger?.info("✅ [Step 2] Content message sent to admin");
+
+      // Send questions message (Part 2: Questions + Approval Buttons)
+      const questionsMessage = `
+📊 *الاخْتِبَارَاتُ (${inputData.questions.length}):*
+
+${inputData.questions.map((q, i) => `
+*${i + 1}. ${q.question}*
+${q.options.map((opt, idx) => `${String.fromCharCode(65 + idx)}) ${opt}`).join('\n')}
+✅ الإجَابَةُ الصَّحِيحَةُ: ${String.fromCharCode(65 + q.correctAnswer)}
+💡 ${q.explanation}
+`).join('\n━━━━━━━━━━━━━━━━\n')}
+
+*يُرْجَى المُرَاجَعَةُ وَالتَّأْكِيدُ لِلنَّشْرِ فِي القَنَاةِ.*
+      `.trim();
+
+      const questionsResponse = await fetch(
+        `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            chat_id: adminChatId,
+            text: questionsMessage,
             parse_mode: "Markdown",
             reply_markup: {
               inline_keyboard: [
@@ -527,11 +553,13 @@ ${q.options.map((opt, idx) => `${String.fromCharCode(65 + idx)}) ${opt}`).join('
         }
       );
 
-      if (!response.ok) {
-        throw new Error(`Telegram API error: ${response.status}`);
+      if (!questionsResponse.ok) {
+        const errorText = await questionsResponse.text();
+        logger?.error("❌ Failed to send questions message", { status: questionsResponse.status, error: errorText });
+        throw new Error(`Telegram API error: ${questionsResponse.status}`);
       }
 
-      logger?.info("✅ [Step 2] Text preview sent to admin");
+      logger?.info("✅ [Step 2] Questions message sent to admin");
 
       // Send audio file to admin for preview
       if (inputData.audioFilename && inputData.audioFilename !== "") {
