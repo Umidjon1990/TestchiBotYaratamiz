@@ -924,7 +924,7 @@ export function registerTelegramAdminTriggers() {
             const chatId = message.chat.id;
             const text = message.text;
 
-            // Only respond to /start command
+            // Handle /start command - show persistent keyboard
             if (text === "/start" || text === "/menu") {
               await fetch(
                 `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
@@ -933,23 +933,102 @@ export function registerTelegramAdminTriggers() {
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
                     chat_id: chatId,
-                    text: `🎓 *مَرْحَبًا بِكَ فِي Content Maker Bot!*\n\nTanlang:`,
+                    text: `🎓 *مَرْحَبًا بِكَ فِي Content Maker Bot!*\n\nQuyidagi tugmalardan birini tanlang:`,
+                    parse_mode: "Markdown",
+                    reply_markup: {
+                      keyboard: [
+                        [
+                          { text: "➕ Yangi test yaratish" },
+                        ],
+                        [
+                          { text: "📋 Testlar ro'yxati" },
+                        ],
+                      ],
+                      resize_keyboard: true,
+                      persistent: true,
+                      input_field_placeholder: "Tugmani tanlang...",
+                    },
+                  }),
+                }
+              );
+
+              logger?.info("✅ [Telegram Admin] Persistent keyboard sent to admin");
+            }
+            
+            // Handle persistent button press: "➕ Yangi test yaratish"
+            else if (text === "➕ Yangi test yaratish") {
+              logger?.info("📝 [Telegram Admin] New test button pressed");
+              
+              // Show topic selection (same as "select_topic" callback)
+              await fetch(
+                `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    chat_id: chatId,
+                    text: `📚 *Mavzu tanlang:*\n\nQaysi mavzu haqida test yaratamiz?`,
                     parse_mode: "Markdown",
                     reply_markup: {
                       inline_keyboard: [
                         [
-                          { text: "➕ Yangi test yaratish", callback_data: "select_topic" },
+                          { text: "🔬 Science (Fan)", callback_data: "topic_Science" },
                         ],
                         [
-                          { text: "📋 Testlar ro'yxati", callback_data: "view_tests" },
+                          { text: "💻 Technology (Texnologiya)", callback_data: "topic_Technology" },
+                        ],
+                        [
+                          { text: "🏥 Health (Salomatlik)", callback_data: "topic_Health" },
+                        ],
+                        [
+                          { text: "🎨 Culture (Madaniyat)", callback_data: "topic_Culture" },
+                        ],
+                        [
+                          { text: "📜 History (Tarix)", callback_data: "topic_History" },
+                        ],
+                        [
+                          { text: "🌍 Environment (Atrof-muhit)", callback_data: "topic_Environment" },
+                        ],
+                        [
+                          { text: "📚 Education (Ta'lim)", callback_data: "topic_Education" },
+                        ],
+                        [
+                          { text: "💼 Business (Biznes)", callback_data: "topic_Business" },
                         ],
                       ],
                     },
                   }),
                 }
               );
-
-              logger?.info("✅ [Telegram Admin] Menu sent to admin");
+            }
+            
+            // Handle persistent button press: "📋 Testlar ro'yxati"
+            else if (text === "📋 Testlar ro'yxati") {
+              logger?.info("📋 [Telegram Admin] View tests button pressed");
+              
+              // Show test categories (same as "view_tests" callback)
+              await fetch(
+                `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    chat_id: chatId,
+                    text: `📋 *Testlar ro'yxati*\n\nKategoriyani tanlang:`,
+                    parse_mode: "Markdown",
+                    reply_markup: {
+                      inline_keyboard: [
+                        [
+                          { text: "🎧 Tinglash testlari", callback_data: "list_listening" },
+                        ],
+                        [
+                          { text: "📖 O'qish testlari", callback_data: "list_reading" },
+                        ],
+                      ],
+                    },
+                  }),
+                }
+              );
             }
             
             return c.json({ ok: true });
