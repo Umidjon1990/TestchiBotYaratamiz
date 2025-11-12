@@ -2,6 +2,7 @@ import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import { appStorageClient } from "../storage/appStorageClient";
 import { Readable } from "stream";
+import { getRandomLahajatiVoice } from "../config/lahajatiVoices";
 
 /**
  * Lahajati Audio Generator Tool
@@ -51,13 +52,16 @@ export const generateLahajatiAudio = createTool({
         };
       }
 
-      // Use Umidjon clone voice directly (no rotation)
-      const selectedVoiceId = "rXBH9gG2s34pMDKFrPXcrKDf"; // Umidjon clone voice
-      const selectedVoiceName = "Umidjon";
+      // Select random voice from available 329 voices
+      const selectedVoice = getRandomLahajatiVoice();
+      const selectedVoiceId = selectedVoice.id_voice;
+      const selectedVoiceName = selectedVoice.name;
       
-      logger?.info("🎤 [generateLahajatiAudio] Using Umidjon clone voice", {
+      logger?.info("🎤 [generateLahajatiAudio] Random voice selected from 329 voices", {
         voiceId: selectedVoiceId,
         voiceName: selectedVoiceName,
+        gender: selectedVoice.gender === "1" ? "male" : selectedVoice.gender === "2" ? "female" : "neutral",
+        package: selectedVoice.package,
       });
 
       // Fetch performance styles and dialects for Absolute Control
