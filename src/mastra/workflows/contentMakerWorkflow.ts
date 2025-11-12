@@ -543,7 +543,8 @@ ${q.options.map((opt, idx) => `${String.fromCharCode(65 + idx)}) ${opt}`).join('
           const audioBuffer = await appStorageClient.downloadAsBuffer(inputData.audioFilename, logger);
           
           // Use form-data package with submit method (compatible way)
-          const FormDataPkg = (await import('form-data')).default;
+          const FormDataModule = await import('form-data');
+          const FormDataPkg = FormDataModule.default || FormDataModule;
           const formData = new FormDataPkg();
           
           // Append fields to FormData
@@ -763,7 +764,8 @@ const sendToTelegramChannel = createStep({
             const audioBuffer = await appStorageClient.downloadAsBuffer(inputData.audioStoragePath, logger);
           
             // Use form-data package with submit method (compatible way)
-            const FormDataPkg = (await import('form-data')).default;
+            const FormDataModule = await import('form-data');
+            const FormDataPkg = FormDataModule.default || FormDataModule;
             const formData = new FormDataPkg();
             
             // Append fields to FormData
