@@ -95,7 +95,9 @@ export function registerApiRoute<P extends string>(
 
 export function registerCronWorkflow(cronExpression: string, workflow: any) {
   const f = inngest.createFunction(
-    { id: "cron-trigger" },
+    { 
+      id: "cron-trigger",
+    },
     [{ event: "replit/cron.trigger" }, { cron: cronExpression }],
     async ({ event, step }) => {
       const run = await workflow.createRunAsync();
