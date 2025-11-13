@@ -28,11 +28,12 @@ if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_ADMIN_CHAT_ID) {
 export function registerTelegramAdminTriggers() {
   return [
     // Unified Telegram webhook - handles both /start commands and callback buttons
-    originalRegisterApiRoute("/webhooks/telegram", {
-      method: "POST",
-      handler: async (c) => {
-        const mastra = c.get("mastra");
-        const logger = mastra.getLogger();
+    {
+      path: "/api/webhooks/telegram",
+      method: "POST" as const,
+      createHandler: async ({ mastra }: any) => {
+        return async (c: any) => {
+        const logger = mastra?.getLogger();
         
         try {
           const payload = await c.req.json();
@@ -1044,7 +1045,8 @@ export function registerTelegramAdminTriggers() {
           });
           return c.json({ ok: false, error: error?.message }, 500);
         }
+      };
       },
-    }),
+    },
   ];
 }

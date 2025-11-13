@@ -20,7 +20,7 @@ function escapeHtml(unsafe: string): string {
 
 export const demoRoutes = [
   {
-    path: "/demo/:slug",
+    path: "/api/demo/:slug",
     method: "GET" as const,
     createHandler: async ({ mastra }: any) => {
       const logger = mastra?.getLogger();
