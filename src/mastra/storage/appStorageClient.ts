@@ -1,21 +1,36 @@
 import { Client } from "@replit/object-storage";
 import { Readable } from "stream";
+import * as fs from "fs";
+import * as path from "path";
 
 /**
  * App Storage Client for managing audio files
+ * Supports both Replit Object Storage and Railway file system
  */
 class AppStorageClient {
-  private client: Client;
+  private client: Client | null = null;
   private initialized: boolean = false;
-  // Actual bucket ID from App Storage Settings
   private bucketId: string = "replit-objstore-f00a83e7-474d-4079-93c4-d7b576bbad69";
-  private bucketName: string = "audio-files"; // Display name for URLs
+  private bucketName: string = "audio-files";
+  private useFileSystem: boolean;
+  private storageDir: string = "/tmp/audio"; // Railway storage directory
 
   constructor() {
-    // Initialize client with actual bucket ID from App Storage
-    this.client = new Client({
-      bucketId: this.bucketId,
-    });
+    // Use file system storage on Railway (NODE_ENV=production without Replit)
+    // Use Replit Object Storage on Replit
+    this.useFileSystem = process.env.NODE_ENV === "production" && !process.env.REPLIT_DEPLOYMENT;
+    
+    if (this.useFileSystem) {
+      // Ensure storage directory exists
+      if (!fs.existsSync(this.storageDir)) {
+        fs.mkdirSync(this.storageDir, { recursive: true });
+      }
+    } else {
+      // Initialize Replit Object Storage client
+      this.client = new Client({
+        bucketId: this.bucketId,
+      });
+    }
   }
 
   /**
@@ -30,10 +45,10 @@ class AppStorageClient {
   }
 
   /**
-   * Upload audio stream to App Storage
-   * @param audioStream - Readable stream from ElevenLabs
+   * Upload audio stream to storage (Replit Object Storage or Railway file system)
+   * @param audioStream - Readable stream from ElevenLabs/Lahajati
    * @param podcastTitle - Title for generating filename
-   * @returns Public URL to the uploaded audio file
+   * @returns Storage path to the uploaded audio file
    */
   async uploadAudioStream(
     audioStream: Readable,
@@ -41,7 +56,6 @@ class AppStorageClient {
     logger?: any
   ): Promise<{ url: string; filename: string }> {
     try {
-      // Ensure client is initialized
       await this.init();
 
       // Generate filename with timestamp
@@ -54,76 +68,146 @@ class AppStorageClient {
       const month = String(new Date().getMonth() + 1).padStart(2, "0");
       const filename = `audio/${year}/${month}/${slug}-${timestamp}.mp3`;
 
-      // Upload stream to App Storage
-      logger?.info("📤 Uploading to bucket:", this.bucketName);
-      await this.client.uploadFromStream(filename, audioStream);
-      logger?.info("✅ Upload complete");
+      if (this.useFileSystem) {
+        // Railway: Save to file system
+        logger?.info("📤 [Railway] Uploading to file system:", filename);
+        
+        const fullPath = path.join(this.storageDir, filename);
+        const dir = path.dirname(fullPath);
+        
+        // Ensure directory exists
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+        
+        // Convert stream to buffer and save
+        const chunks: Buffer[] = [];
+        await new Promise<void>((resolve, reject) => {
+          audioStream.on('data', (chunk: Buffer) => chunks.push(chunk));
+          audioStream.on('end', () => resolve());
+          audioStream.on('error', (error) => reject(error));
+        });
+        
+        const buffer = Buffer.concat(chunks);
+        fs.writeFileSync(fullPath, buffer);
+        
+        logger?.info("✅ [Railway] Upload complete to file system:", { path: fullPath, size: buffer.length });
+        
+        // Return file path as storage reference
+        return { url: fullPath, filename };
+      } else {
+        // Replit: Save to Object Storage
+        logger?.info("📤 [Replit] Uploading to Object Storage:", this.bucketName);
+        
+        if (!this.client) {
+          throw new Error("Replit Object Storage client not initialized");
+        }
+        
+        await this.client.uploadFromStream(filename, audioStream);
+        logger?.info("✅ [Replit] Upload complete");
 
-      // Generate public URL for App Storage
-      // Pattern: https://<domain>/_app_storage/<bucket-id>/<filename>
-      const domain = process.env.REPLIT_DOMAINS?.split(',')[0];
-      
-      if (!domain) {
-        // Local development fallback
-        const url = `http://localhost:5000/_app_storage/${this.bucketId}/${filename}`;
-        logger?.info("📍 Local public URL generated:", url);
+        // Generate public URL for App Storage
+        const domain = process.env.REPLIT_DOMAINS?.split(',')[0];
+        
+        if (!domain) {
+          const url = `http://localhost:5000/_app_storage/${this.bucketId}/${filename}`;
+          logger?.info("📍 Local public URL generated:", url);
+          return { url, filename };
+        }
+        
+        const url = `https://${domain}/_app_storage/${this.bucketId}/${filename}`;
+        logger?.info("📍 Public URL generated:", url);
         return { url, filename };
       }
-      
-      const url = `https://${domain}/_app_storage/${this.bucketId}/${filename}`;
-      logger?.info("📍 Public URL generated:", url);
-      return { url, filename };
     } catch (error) {
-      throw new Error(`Failed to upload audio to App Storage: ${error}`);
+      throw new Error(`Failed to upload audio to storage: ${error}`);
     }
   }
 
   /**
-   * Check if a file exists in App Storage
+   * Check if a file exists in storage
    */
   async exists(filename: string): Promise<boolean> {
     await this.init();
-    const result = await this.client.exists(filename);
-    return result.ok ? result.value : false;
+    
+    if (this.useFileSystem) {
+      const fullPath = path.join(this.storageDir, filename);
+      return fs.existsSync(fullPath);
+    } else {
+      if (!this.client) return false;
+      const result = await this.client.exists(filename);
+      return result.ok ? result.value : false;
+    }
   }
 
   /**
-   * Delete a file from App Storage
+   * Delete a file from storage
    */
   async delete(filename: string): Promise<boolean> {
     await this.init();
-    const result = await this.client.delete(filename);
-    return result.ok;
+    
+    if (this.useFileSystem) {
+      const fullPath = path.join(this.storageDir, filename);
+      if (fs.existsSync(fullPath)) {
+        fs.unlinkSync(fullPath);
+        return true;
+      }
+      return false;
+    } else {
+      if (!this.client) return false;
+      const result = await this.client.delete(filename);
+      return result.ok;
+    }
   }
 
   /**
-   * Download a file from App Storage as Buffer
+   * Download a file from storage as Buffer
+   * @param filenameOrPath - Filename for Replit, full path for Railway
    */
-  async downloadAsBuffer(filename: string, logger?: any): Promise<Buffer> {
+  async downloadAsBuffer(filenameOrPath: string, logger?: any): Promise<Buffer> {
     await this.init();
-    logger?.info("📥 Downloading from App Storage:", filename);
     
-    const stream = await this.client.downloadAsStream(filename);
-    
-    // Convert Node.js Readable stream to buffer
-    const chunks: Buffer[] = [];
-    
-    return new Promise((resolve, reject) => {
-      stream.on('data', (chunk: Buffer) => {
-        chunks.push(chunk);
-      });
+    if (this.useFileSystem) {
+      // Railway: Read from file system
+      // filenameOrPath is already a full path like /tmp/audio/audio/2025/11/...
+      logger?.info("📥 [Railway] Reading from file system:", filenameOrPath);
       
-      stream.on('end', () => {
-        const buffer = Buffer.concat(chunks);
-        logger?.info("✅ Downloaded from App Storage:", { size: buffer.length });
-        resolve(buffer);
-      });
+      if (!fs.existsSync(filenameOrPath)) {
+        throw new Error(`File not found: ${filenameOrPath}`);
+      }
       
-      stream.on('error', (error) => {
-        logger?.error("❌ Failed to download from App Storage:", error);
-        reject(error);
+      const buffer = fs.readFileSync(filenameOrPath);
+      logger?.info("✅ [Railway] Read from file system:", { size: buffer.length });
+      return buffer;
+    } else {
+      // Replit: Download from Object Storage
+      logger?.info("📥 [Replit] Downloading from Object Storage:", filenameOrPath);
+      
+      if (!this.client) {
+        throw new Error("Replit Object Storage client not initialized");
+      }
+      
+      const stream = await this.client.downloadAsStream(filenameOrPath);
+      
+      const chunks: Buffer[] = [];
+      
+      return new Promise((resolve, reject) => {
+        stream.on('data', (chunk: Buffer) => {
+          chunks.push(chunk);
+        });
+        
+        stream.on('end', () => {
+          const buffer = Buffer.concat(chunks);
+          logger?.info("✅ [Replit] Downloaded from Object Storage:", { size: buffer.length });
+          resolve(buffer);
+        });
+        
+        stream.on('error', (error) => {
+          logger?.error("❌ Failed to download from Object Storage:", error);
+          reject(error);
+        });
       });
-    });
+    }
   }
 }
 
