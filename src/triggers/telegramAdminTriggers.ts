@@ -105,6 +105,31 @@ export function registerTelegramAdminTriggers() {
               
               const demoData = demo[0];
               
+              // Validate audioStoragePath for audio content
+              if ((demoData.contentType === "listening" || demoData.contentType === "podcast") && 
+                  (!demoData.audioStoragePath || demoData.audioStoragePath === "")) {
+                logger?.error("❌ [Telegram Admin] Demo missing audioStoragePath - cannot send audio content", {
+                  demoId,
+                  contentType: demoData.contentType,
+                  hasAudioUrl: !!demoData.audioUrl,
+                });
+                
+                // Notify admin to regenerate content
+                await fetch(
+                  `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      chat_id: chatId,
+                      text: "❌ خطأ: المحتوى القديم. يرجى إعادة إنشاء المحتوى.\n\nError: Legacy content without storagePath. Please regenerate this content.",
+                    }),
+                  }
+                );
+                
+                return c.json({ ok: false, error: "Missing audioStoragePath" }, 400);
+              }
+              
               // Execute Step 3 with full demo data
               // Note: sendToTelegramChannel is a Mastra step, not a regular function
               // We'll call it directly with the proper context
@@ -116,7 +141,7 @@ export function registerTelegramAdminTriggers() {
                   podcastContent: demoData.podcastContent,
                   questions: demoData.questions as any,
                   imageUrl: demoData.imageUrl,
-                  audioStoragePath: demoData.audioStoragePath || demoData.audioUrl || "",
+                  audioStoragePath: demoData.audioStoragePath || "",
                   contentType: demoData.contentType || "podcast",
                 },
                 mastra,
