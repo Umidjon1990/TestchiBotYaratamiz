@@ -157,29 +157,34 @@ export const generateLahajatiAudio = createTool({
       const nodeStream = Readable.from(audioBuffer);
 
       // Upload audio stream to App Storage
-      const { url, filename } = await appStorageClient.uploadAudioStream(
+      const storageResult = await appStorageClient.uploadAudioStream(
         nodeStream,
         context.title,
         logger
       );
 
+      // Determine storage path based on environment
+      const isRailway = process.env.NODE_ENV === "production" && !process.env.REPLIT_DEPLOYMENT;
+      const storagePath = isRailway ? storageResult.url : storageResult.filename;
+
       const estimatedDuration = Math.ceil(context.text.length / 10); // ~10 characters per second
 
       logger?.info("✅ [generateLahajatiAudio] Audio generated and stored successfully", {
-        filename,
-        url,
+        storagePath,
+        publicUrl: storageResult.url,
+        isRailway,
         estimatedDuration,
         base64Length: audioBase64.length,
         voiceId: selectedVoiceId,
       });
 
       return {
-        audioUrl: url,
+        audioUrl: storageResult.url,
         audioBase64,
         duration: estimatedDuration,
         success: true,
         message: `Audio generated successfully via Lahajati.ai using cloned voice "${selectedVoiceName}" and stored in App Storage`,
-        filename,
+        filename: storagePath,
         voiceId: String(selectedVoiceId),
       };
     } catch (error) {
