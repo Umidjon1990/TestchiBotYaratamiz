@@ -88,12 +88,12 @@ export function registerTelegramAdminTriggers() {
               }
             );
 
-            // Trigger Step 3 - send to channel
+            // Send to channel directly (Inngest'siz - Railway compatible)
             logger?.info("🚀 [Telegram Admin] Fetching demo content and sending to channel...");
             
             try {
-              // Import sendToTelegramChannel step
-              const { sendToTelegramChannel } = await import("../mastra/workflows/contentMakerWorkflow");
+              // Import sendToTelegramChannelDirectly helper
+              const { sendToTelegramChannelDirectly } = await import("../mastra/helpers/contentGenerationHelper");
               
               // Get full demo content from database
               const demo = await db.select().from(schema.demoSessions).where(eq(schema.demoSessions.id, parseInt(demoId))).limit(1);
@@ -130,29 +130,27 @@ export function registerTelegramAdminTriggers() {
                 return c.json({ ok: false, error: "Missing audioStoragePath" }, 400);
               }
               
-              // Execute Step 3 with full demo data
-              // Note: sendToTelegramChannel is a Mastra step, not a regular function
-              // We'll call it directly with the proper context
-              const stepContext = {
-                inputData: {
-                  previewSent: true,
-                  message: "Approved by admin",
-                  podcastTitle: demoData.podcastTitle,
-                  podcastContent: demoData.podcastContent,
-                  questions: demoData.questions as any,
-                  imageUrl: demoData.imageUrl,
+              // Send to channel
+              const result = await sendToTelegramChannelDirectly(
+                {
+                  title: demoData.podcastTitle || "",
+                  content: demoData.podcastContent || "",
+                  questions: (demoData.questions as any) || [],
+                  imageUrl: demoData.imageUrl || "",
                   audioStoragePath: demoData.audioStoragePath || "",
                   contentType: demoData.contentType || "podcast",
                 },
-                mastra,
-              };
+                logger
+              );
               
-              const result = await (sendToTelegramChannel as any).execute(stepContext);
-              
-              logger?.info("✅ [Telegram Admin] Content sent to channel", { result });
-              
-              // Update status to 'posted'
-              await demoRepository.updateDemoStatusById(parseInt(demoId), "posted", logger);
+              if (result.success) {
+                logger?.info("✅ [Telegram Admin] Content sent to channel");
+                
+                // Update status to 'posted'
+                await demoRepository.updateDemoStatusById(parseInt(demoId), "posted", logger);
+              } else {
+                throw new Error(result.error || "Unknown error");
+              }
               
             } catch (channelError: any) {
               logger?.error("❌ [Telegram Admin] Failed to send to channel", {
@@ -896,26 +894,30 @@ export function registerTelegramAdminTriggers() {
               audioProvider,
             });
             
-            // Run workflow in background
+            // Generate content directly (Inngest'siz - Railway compatible)
             (async () => {
               try {
-                const { contentMakerWorkflow } = await import("../mastra/workflows/contentMakerWorkflow");
+                const { generateContentDirectly } = await import("../mastra/helpers/contentGenerationHelper");
                 
-                const run = await contentMakerWorkflow.createRunAsync();
-                const result = await run.start({
-                  inputData: {
+                const result = await generateContentDirectly(
+                  {
                     contentType,
                     level,
                     topic,
                     audioProvider: audioProvider === "none" ? undefined : audioProvider,
                   },
-                });
+                  mastra
+                );
                 
-                logger?.info("✅ [Telegram Admin] Workflow triggered successfully with topic", {
-                  status: result?.status,
-                });
+                if (result.success) {
+                  logger?.info("✅ [Telegram Admin] Content generated successfully", {
+                    demoId: result.demoId,
+                  });
+                } else {
+                  throw new Error(result.error || "Unknown error");
+                }
               } catch (triggerError: any) {
-                logger?.error("❌ [Telegram Admin] Failed to trigger workflow", {
+                logger?.error("❌ [Telegram Admin] Failed to generate content", {
                   error: triggerError?.message,
                   stack: triggerError?.stack,
                 });
