@@ -959,9 +959,10 @@ export function registerTelegramAdminTriggers() {
             // Handle persistent button press: "➕ Yangi test yaratish"
             else if (text === "➕ Yangi test yaratish") {
               logger?.info("📝 [Telegram Admin] New test button pressed");
+              logger?.info("🔍 [DEBUG] chatId:", chatId, "TELEGRAM_ADMIN_CHAT_ID:", TELEGRAM_ADMIN_CHAT_ID);
               
               // Show topic selection (same as "select_topic" callback)
-              await fetch(
+              const response = await fetch(
                 `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
                 {
                   method: "POST",
