@@ -277,7 +277,7 @@ ${levelDifficulty[level as keyof typeof levelDifficulty] || levelDifficulty["B1"
       logger?.info("🚫 [Step 1] Skipping image generation - not needed for reading mode");
 
       // Generate audio for all modes EXCEPT reading (reading is text-only)
-      let audioData = { audioUrl: "", audioBase64: "", filename: "" };
+      let audioData = { audioUrl: "", audioBase64: "", filename: "", storagePath: "" };
       if (contentType !== "reading") {
         logger?.info(`🎧 [Step 1] Generating audio for ${contentType} mode...`, { audioProvider });
         audioData = await generateAudioData(
@@ -295,7 +295,7 @@ ${levelDifficulty[level as keyof typeof levelDifficulty] || levelDifficulty["B1"
         ...podcastData,
         imageUrl: "", // No image for reading mode
         audioUrl: audioData.audioUrl || "",
-        audioFilename: audioData.filename || "",
+        audioFilename: audioData.storagePath || audioData.filename || "",
         contentType,
         level,
         topic,
@@ -316,7 +316,7 @@ async function generateAudioData(
   audioProvider: string,
   logger: any,
   mastra: any
-): Promise<{ audioUrl: string; audioBase64: string; filename: string }> {
+): Promise<{ audioUrl: string; audioBase64: string; filename: string; storagePath: string }> {
   try {
     logger?.info("🎧 [generateAudioData] Starting audio generation...", { audioProvider });
 
@@ -352,12 +352,14 @@ async function generateAudioData(
       logger?.info("✅ [generateAudioData] Audio generated and stored:", {
         url: result.audioUrl,
         filename: result.filename,
+        storagePath: result.storagePath || result.filename,
         base64Length: result.audioBase64.length,
       });
       return {
         audioUrl: result.audioUrl,
         audioBase64: result.audioBase64,
         filename: result.filename,
+        storagePath: result.storagePath || result.filename,
       };
     } else {
       logger?.warn("⚠️ [generateAudioData] Audio generation failed:", result.message);
@@ -382,15 +384,16 @@ async function generateAudioData(
             audioUrl: fallbackResult.audioUrl,
             audioBase64: fallbackResult.audioBase64,
             filename: fallbackResult.filename,
+            storagePath: fallbackResult.storagePath || fallbackResult.filename,
           };
         }
       }
       
-      return { audioUrl: "", audioBase64: "", filename: "" };
+      return { audioUrl: "", audioBase64: "", filename: "", storagePath: "" };
     }
   } catch (error) {
     logger?.error("❌ [generateAudioData] Error:", { error });
-    return { audioUrl: "", audioBase64: "", filename: "" };
+    return { audioUrl: "", audioBase64: "", filename: "", storagePath: "" };
   }
 }
 

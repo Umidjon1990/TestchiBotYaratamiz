@@ -93,7 +93,8 @@ class AppStorageClient {
         
         logger?.info("✅ [Railway] Upload complete to file system:", { path: fullPath, size: buffer.length });
         
-        // Return file path as storage reference
+        // Railway: Return full path in url field (used by storagePath), filename is relative key
+        // Note: url is NOT a public URL on Railway, it's a local filesystem path
         return { url: fullPath, filename };
       } else {
         // Replit: Save to Object Storage

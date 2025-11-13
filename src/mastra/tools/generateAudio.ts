@@ -30,7 +30,8 @@ export const generateAudio = createTool({
     duration: z.number().describe("Audio duration in seconds (estimated)"),
     success: z.boolean().describe("Whether audio generation and storage was successful"),
     message: z.string().describe("Status message"),
-    filename: z.string().optional().describe("Storage filename"),
+    filename: z.string().optional().describe("Storage filename (relative key)"),
+    storagePath: z.string().optional().describe("Environment-specific storage path for downloads"),
     voiceName: z.string().optional().describe("Selected voice name"),
     voiceGender: z.string().optional().describe("Selected voice gender"),
   }),
@@ -137,15 +138,17 @@ export const generateAudio = createTool({
         logger
       );
 
-      // Determine storage path based on environment
+      // Determine storage path and public URL based on environment
       const isRailway = process.env.NODE_ENV === "production" && !process.env.REPLIT_DEPLOYMENT;
       const storagePath = isRailway ? storageResult.url : storageResult.filename;
+      const publicUrl = isRailway ? "" : storageResult.url; // Railway has no public URL
 
       const estimatedDuration = Math.ceil(context.text.length / 10); // ~10 characters per second
 
       logger?.info("✅ [generateAudio] Audio generated and stored successfully", {
+        filename: storageResult.filename,
         storagePath,
-        publicUrl: storageResult.url,
+        publicUrl,
         isRailway,
         estimatedDuration,
         base64Length: audioBase64.length,
@@ -153,12 +156,13 @@ export const generateAudio = createTool({
       });
 
       return {
-        audioUrl: storageResult.url,
+        audioUrl: publicUrl,
         audioBase64,
         duration: estimatedDuration,
         success: true,
-        message: `Audio generated successfully via ElevenLabs (${selectedVoice.name}) and stored in App Storage`,
-        filename: storagePath,
+        message: `Audio generated successfully via ElevenLabs (${selectedVoice.name}) and stored in ${isRailway ? "file system" : "App Storage"}`,
+        filename: storageResult.filename,
+        storagePath,
         voiceName: selectedVoice.name,
         voiceGender: selectedVoice.gender,
       };
