@@ -257,6 +257,6 @@ if (Object.keys(mastra.getAgents()).length > 1) {
 }
 
 // Register time-based trigger (cron)
-// Runs content maker workflow every day at 9:00 AM UTC
-// Cron format: "0 9 * * *"
-registerCronWorkflow("0 9 * * *", contentMakerWorkflow);
+// Runs content maker workflow every day at 9:00 AM Tashkent time (4:00 AM UTC)
+// Cron format: "0 4 * * *"
+registerCronWorkflow("0 4 * * *", contentMakerWorkflow);
