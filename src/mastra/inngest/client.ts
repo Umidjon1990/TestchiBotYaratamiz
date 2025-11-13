@@ -7,6 +7,7 @@ export const inngest = new Inngest(
     ? {
         id: "replit-agent-workflow",
         name: "Replit Agent Workflow System",
+        eventKey: process.env.INNGEST_EVENT_KEY,
       }
     : {
         id: "mastra",
@@ -15,3 +16,10 @@ export const inngest = new Inngest(
         middleware: [realtimeMiddleware()],
       },
 );
+
+// Log warning if INNGEST_EVENT_KEY is missing in production
+if (process.env.NODE_ENV === "production" && !process.env.INNGEST_EVENT_KEY) {
+  console.warn(
+    "⚠️ INNGEST_EVENT_KEY not found! Workflow events will fail. Please set INNGEST_EVENT_KEY in Railway environment variables."
+  );
+}
