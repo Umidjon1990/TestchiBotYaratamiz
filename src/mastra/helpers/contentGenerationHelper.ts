@@ -1,7 +1,8 @@
-import { contentMakerAgent } from "../agents/contentMakerAgent";
 import { demoRepository } from "../storage/demoRepository";
 import { appStorageClient } from "../storage/appStorageClient";
 import { z } from "zod";
+import { generateObject } from "ai";
+import { createOpenAI } from "@ai-sdk/openai";
 
 /**
  * Content Generation Helper - Inngest'siz
@@ -10,6 +11,26 @@ import { z } from "zod";
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID;
+
+// OpenAI client for direct AI calls (Railway deployment)
+const openai = createOpenAI({
+  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+});
+
+// Content output schema for structured generation
+const ContentSchema = z.object({
+  topic: z.string().describe("موضوع المحتوى"),
+  podcastTitle: z.string().describe("عنوان المحتوى مع التشكيل"),
+  podcastContent: z.string().describe("النص الكامل مع التشكيل"),
+  questions: z.array(z.object({
+    question: z.string(),
+    options: z.array(z.string()).length(4),
+    correctAnswer: z.enum(["A", "B", "C", "D"]).describe("الإجابة الصحيحة (A أو B أو C أو D)"),
+    explanation: z.string(),
+  })).length(5),
+  imageUrl: z.string().optional().default(""),
+});
 
 export interface ContentGenerationParams {
   contentType: "podcast" | "listening" | "reading";
@@ -75,42 +96,61 @@ ${topicInstruction}
 5. **مُهِمٌّ:** ${levelDifficulty[level]}
 
 يَجِبُ أَنْ يَكُونَ جَمِيعُ النَّصِّ بِالتَّشْكِيلِ الكَامِلِ (الحركات على كل حرف).
+
+**CRITICAL: You MUST respond with ONLY valid JSON in this exact format (no markdown, no extra text):**
+
+{
+  "topic": "موضوع المحتوى",
+  "podcastTitle": "عنوان المحتوى مع التشكيل",
+  "podcastContent": "النص الكامل مع التشكيل (${contentType === "listening" ? "75+ كلمة" : "100+ كلمة"})",
+  "questions": [
+    {
+      "question": "السؤال مع التشكيل؟",
+      "options": ["الخيار A", "الخيار B", "الخيار C", "الخيار D"],
+      "correctAnswer": "A",
+      "explanation": "شرح الإجابة الصحيحة"
+    }
+  ],
+  "imageUrl": ""
+}
+
+Return ONLY the JSON object above, nothing else.
 `;
 
-    const agentResponse = await contentMakerAgent.generateLegacy(
-      [{ role: "user", content: prompt }],
-      {
-        resourceId: "daily-content",
-        threadId: `content-${new Date().toISOString().split('T')[0]}`,
-      }
-    );
-
-    logger?.info("✅ [Helper Step 1] Agent generation complete", {
-      textLength: agentResponse.text.length,
-    });
-
-    // Parse agent response - extract JSON from text
-    let content: any;
+    let content;
     try {
-      const jsonMatch = agentResponse.text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        content = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error("No JSON found in response");
-      }
-    } catch (parseError: any) {
-      logger?.error("❌ [Helper Step 1] Failed to parse agent response", {
-        error: parseError?.message,
-        response: agentResponse.text.substring(0, 200),
+      const result = await generateObject({
+        model: openai.responses("gpt-5"),
+        schema: ContentSchema,
+        prompt,
+        temperature: 0.7,
       });
-      throw new Error(`Failed to parse agent response: ${parseError?.message}`);
+      content = result.object;
+    } catch (firstError: any) {
+      logger?.warn("⚠️ [Helper Step 1] First attempt failed, retrying...", {
+        error: firstError?.message,
+      });
+      
+      // Retry once for transient errors
+      try {
+        const result = await generateObject({
+          model: openai.responses("gpt-5"),
+          schema: ContentSchema,
+          prompt,
+          temperature: 0.8, // Slightly higher temp for retry
+        });
+        content = result.object;
+        logger?.info("✅ [Helper Step 1] Retry successful");
+      } catch (retryError: any) {
+        logger?.error("❌ [Helper Step 1] Both attempts failed", {
+          firstError: firstError?.message,
+          retryError: retryError?.message,
+        });
+        throw new Error(`AI generation failed after retry: ${retryError?.message}`);
+      }
     }
 
-    if (!content || !content.podcastTitle) {
-      throw new Error("Agent failed to generate valid content");
-    }
-
-    logger?.info("📦 [Helper Step 1] Content parsed successfully", {
+    logger?.info("✅ [Helper Step 1] Content generated with structured output", {
       title: content.podcastTitle,
       questions: content.questions?.length || 0,
     });
@@ -132,7 +172,7 @@ ${topicInstruction}
 
       const audioResult = await audioTool.execute(
         {
-          text: content.podcastContent || content.readingContent || "",
+          text: content.podcastContent || "",
           title: content.podcastTitle,
         },
         { mastra }
@@ -151,13 +191,35 @@ ${topicInstruction}
       });
     }
 
-    // Step 3: Save to database
-    logger?.info("💾 [Helper Step 3] Saving to database...");
+    // Step 3: Convert correctAnswer from string ("A", "B", "C", "D") to number (0, 1, 2, 3)
+    logger?.info("📝 [Helper Step 3] Converting question answers to numeric format...");
+    
+    const questionsWithNumberAnswers = content.questions.map((q, idx) => {
+      const answer = q.correctAnswer.trim().toUpperCase();
+      let numericAnswer: number;
+      
+      if (answer === "A") numericAnswer = 0;
+      else if (answer === "B") numericAnswer = 1;
+      else if (answer === "C") numericAnswer = 2;
+      else if (answer === "D") numericAnswer = 3;
+      else {
+        logger?.error(`❌ Invalid correctAnswer for question ${idx + 1}: "${q.correctAnswer}" - expected A, B, C, or D`);
+        throw new Error(`Invalid correctAnswer: "${q.correctAnswer}" (expected A, B, C, or D)`);
+      }
+      
+      return {
+        ...q,
+        correctAnswer: numericAnswer,
+      };
+    });
+    
+    // Step 4: Save to database
+    logger?.info("💾 [Helper Step 4] Saving to database...");
     
     const demoSession = await demoRepository.createDemoSession({
       podcastTitle: content.podcastTitle,
-      podcastContent: content.podcastContent || content.readingContent || "",
-      questions: content.questions || [],
+      podcastContent: content.podcastContent || "",
+      questions: questionsWithNumberAnswers,
       imageUrl: content.imageUrl || "",
       audioUrl,
       audioStoragePath,
@@ -174,14 +236,14 @@ ${topicInstruction}
     
     logger?.info("✅ [Helper Step 3] Saved to database", { demoId });
 
-    // Step 4: Send preview to admin
-    logger?.info("📤 [Helper Step 4] Sending preview to admin...");
+    // Step 5: Send preview to admin
+    logger?.info("📤 [Helper Step 5] Sending preview to admin...");
     
     await sendAdminPreview({
       demoId,
       title: content.podcastTitle,
-      content: content.podcastContent || content.readingContent || "",
-      questions: content.questions || [],
+      content: content.podcastContent || "",
+      questions: questionsWithNumberAnswers, // Use numeric format for correct ✅ markers
       imageUrl: content.imageUrl || "",
       audioStoragePath,
       contentType,
